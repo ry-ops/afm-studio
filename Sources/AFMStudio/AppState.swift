@@ -4,7 +4,7 @@ import AFMServer
 
 enum Pane: Hashable {
     case chat(String)
-    case recipes, structured, batch, compare, tokens, bench, history, model, integrations
+    case recipes, structured, batch, compare, tokens, bench, history, model, claude, integrations
 }
 
 @Observable @MainActor
@@ -16,11 +16,15 @@ final class AppState {
     var settings = AFMSettings.load()
     var chatModels: [String: ChatViewModel] = [:]
     let server = ServerController()
+    let claude = ClaudeState()
 
     init() {
         reloadSessions()
         reloadRecipes()
         if let first = sessions.first { pane = .chat(first.id) }
+        claude.refreshKey()
+        let s = settings
+        Task { await claude.sync(settings: s) }
         Task { await watch() }
     }
 

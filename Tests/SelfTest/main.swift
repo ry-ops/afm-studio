@@ -1,0 +1,156 @@
+// Self-test for AFMKit and AFMServer. Runs with only the Command Line Tools installed:
+//   swift run afm-selftest            (unit checks plus a live model check when available)
+//   swift run afm-selftest --offline  (skip the live model check)
+import Foundation
+import FoundationModels
+import AFMKit
+import AFMServer
+
+var passed = 0
+var failed: [String] = []
+var current = ""
+
+func check(_ ok: @autoclosure () throws -> Bool, _ what: String, line: Int = #line) {
+    do {
+        if try ok() { passed += 1 } else { failed.append("\(current): \(what) (line \(line))") }
+    } catch {
+        failed.append("\(current): \(what) threw \(error) (line \(line))")
+    }
+}
+
+func checkThrows(_ what: String, line: Int = #line, _ op: () throws -> Void) {
+    do { try op(); failed.append("\(current): \(what) should have thrown (line \(line))") } catch { passed += 1 }
+}
+
+@MainActor func suite(_ name: String, _ body: () async throws -> Void) async {
+    current = name
+    let before = failed.count
+    do { try await body() } catch { failed.append("\(name): threw \(error)") }
+    print((failed.count == before ? "✓ " : "✗ ") + name)
+}
+
+let home = FileManager.default.temporaryDirectory.appendingPathComponent("afm-selftest-\(getpid())")
+setenv("AFM_HOME", home.path, 1)
+
+await suite("Calculator") {
+    check(try Calculator.evaluate("2 + 3 * 4") == 14, "precedence")
+    check(try Calculator.evaluate("(2 + 3) * 4") == 20, "parentheses")
+    check(try Calculator.evaluate("2 ^ 10") == 1024, "power")
+    check(try Calculator.evaluate("-3 + sqrt(16)") == 1, "unary and functions")
+    check(try Calculator.evaluate("1,250 * 2") == 2500, "thousands separators")
+    check(try Calculator.evaluate("17.5% of 2340") == 409.5, "percent of")
+    check(try Calculator.evaluate("200 * 15%") == 30, "trailing percent")
+    check(try Calculator.evaluate("10 % 3") == 1, "modulo")
+    check(abs(try Calculator.evaluate("$86.40 times 0.18") - 15.552) < 1e-9, "words and currency")
+    checkThrows("division by zero") { _ = try Calculator.evaluate("1 / 0") }
+    checkThrows("dangling operator") { _ = try Calculator.evaluate("2 +") }
+    checkThrows("unknown function") { _ = try Calculator.evaluate("foo(2)") }
+}
+
+await suite("JSON Schema") {
+    let s = try JSONSchemaConverter.jsonSchema(fromFields: "name:string, age:int, tags:[string], mood:enum(happy|sad), note:string?")
+    let props = s["properties"] as! [String: Any]
+    check(props.count == 5, "five fields")
+    check((s["required"] as! [String]) == ["name", "age", "tags", "mood"], "optional marker")
+    check(((props["mood"] as! [String: Any])["enum"] as! [String]) == ["happy", "sad"], "enum values")
+    checkThrows("unknown type") { _ = try JSONSchemaConverter.jsonSchema(fromFields: "x:color") }
+
+    let nested = ##"{"type":"object","title":"Order","properties":{"id":{"type":"integer","minimum":1},"items":{"type":"array","maxItems":3,"items":{"type":"object","properties":{"sku":{"type":"string"},"qty":{"type":"integer"}},"required":["sku","qty"]}},"status":{"type":"string","enum":["open","shipped"]},"ref":{"$ref":"#/$defs/Ref"}},"required":["id","items","status"],"$defs":{"Ref":{"type":"object","properties":{"code":{"type":"string"}}}}}"##
+    let schema = try JSONSchemaConverter.schema(fromJSON: nested)
+    let encoded = String(decoding: try JSONEncoder().encode(schema), as: UTF8.self)
+    check(encoded.contains("shipped") && encoded.contains("sku"), "nested schema converts")
+
+    for r in Recipe.builtins where r.schema != nil {
+        check((try? JSONSchemaConverter.schema(fromJSON: Recipe.render(r.schema!, r.defaults()))) != nil, "recipe \(r.id) schema compiles")
+    }
+
+    let ordered = try JSONSchemaConverter.schema(fromJSON: #"{"type":"object","properties":{"b":{"type":"string"},"a":{"type":"integer"}},"x-order":["b","a"]}"#)
+    let content = GeneratedContent(kind: .structure(properties: ["a": GeneratedContent(kind: .number(1)), "b": GeneratedContent(kind: .string("x"))], orderedKeys: ["a", "b"]))
+    let out = JSONRender.pretty(SchemaOrder(ordered)!.apply(content))
+    check(out.range(of: "\"b\"")!.lowerBound < out.range(of: "\"a\"")!.lowerBound, "schema key order restored")
+}
+
+await suite("Text utilities") {
+    let text = (1...60).map { "Paragraph \($0). " + String(repeating: "Words go here. ", count: 20) }.joined(separator: "\n\n")
+    let chunks = Chunker.split(text, maxChars: 2000)
+    check(chunks.count > 1, "splits long text")
+    check(chunks.allSatisfy { $0.count <= 2000 }, "chunks respect the limit")
+    check(chunks.joined().components(separatedBy: "Paragraph ").count - 1 == 60, "no paragraph lost")
+
+    let merged = JSONMerge.merge([#"{"people":["Ann"],"summary":""}"#, #"{"people":["Ann","Bo"],"summary":"Hi"}"#])
+    check(merged.contains("Bo") && merged.components(separatedBy: "Ann").count == 2 && merged.contains("Hi"), "JSON merge")
+
+    check(Recipe.render("{{labels}} / {{labels_json}}", ["labels": "a, b ,c"]) == #"a, b ,c / ["a","b","c"]"#, "template rendering")
+    check(WebText.strip("<html><head><title>x</title></head><body><script>bad()</script><p>Hello &amp; welcome</p></body></html>") == "Hello & welcome", "HTML stripping")
+    checkThrows("reading /etc is refused") { _ = try FileAccess.resolve("/etc/hosts") }
+    checkThrows("path traversal is refused") { _ = try FileAccess.resolve("~/../../etc/hosts") }
+}
+
+await suite("Servers") {
+    let r = HTTPRequest.parse(Data("POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}".utf8))
+    check(r?.method == "POST" && r?.path == "/v1/chat/completions", "HTTP parse")
+    check(HTTPRequest.parse(Data("POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\n{}".utf8)) == nil, "waits for full body")
+
+    final class Capture: @unchecked Sendable {
+        var lines: [String] = []
+        let lock = NSLock()
+        func add(_ s: String) { lock.lock(); lines.append(s); lock.unlock() }
+    }
+    let cap = Capture()
+    let server = MCPServer(output: cap.add)
+    await server.handleLine(#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26"}}"#)
+    await server.handleLine(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#)
+    await server.handleLine(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+    await server.handleLine(#"{"jsonrpc":"2.0","id":3,"method":"nope"}"#)
+    await server.handleLine("not json")
+    check(cap.lines.count == 4, "one reply per request, none for notifications")
+    check(cap.lines[0].contains("2025-03-26"), "protocol version negotiated")
+    let list = try JSONSerialization.jsonObject(with: Data(cap.lines[1].utf8)) as! [String: Any]
+    let tools = (list["result"] as! [String: Any])["tools"] as! [[String: Any]]
+    check(tools.count == 15, "15 MCP tools")
+    check(tools.allSatisfy { ($0["inputSchema"] as? [String: Any])?["type"] as? String == "object" }, "tool schemas are objects")
+    check(cap.lines[2].contains("-32601"), "unknown method error")
+    check(cap.lines[3].contains("-32700"), "parse error")
+}
+
+await suite("Claude wiring") {
+    // Sandbox HOME so the real Claude Desktop config is never touched.
+    let fakeHome = home.appendingPathComponent("home")
+    let cfgDir = fakeHome.appendingPathComponent("Library/Application Support/Claude")
+    try FileManager.default.createDirectory(at: cfgDir, withIntermediateDirectories: true)
+    let cfg = cfgDir.appendingPathComponent("claude_desktop_config.json")
+    try Data(#"{"mcpServers":{"other":{"command":"/bin/echo"}},"theme":"dark"}"#.utf8).write(to: cfg)
+    let realHome = ProcessInfo.processInfo.environment["HOME"]
+    setenv("HOME", fakeHome.path, 1)
+    defer { if let realHome { setenv("HOME", realHome, 1) } }
+    check(ClaudeHook.desktopConfig.path == cfg.path, "config path follows HOME")
+    _ = try ClaudeHook.hookDesktop(cliPath: "/x/afm")
+    check(ClaudeHook.desktopStatus() == (true, "/x/afm"), "desktop hook registers afm")
+    let text = try String(contentsOf: cfg, encoding: .utf8)
+    check(text.contains("\"other\"") && text.contains("\"theme\""), "other settings preserved")
+    check(FileManager.default.fileExists(atPath: cfgDir.appendingPathComponent("claude_desktop_config.afm-backup.json").path), "backup written")
+    check(try ClaudeHook.hookDesktop(cliPath: "/x/afm") == "Already registered.", "idempotent")
+    _ = try ClaudeHook.unhookDesktop()
+    check(ClaudeHook.desktopStatus().hooked == false, "unhook removes afm")
+    checkThrows("rejects non-Anthropic keys") { try ClaudeKeychain.save("hunter2") }
+    check(ClaudeKeychain.masked("sk-ant-api03-abcdefghijklmnop9f2c") == "sk-ant-api…9f2c", "key masking")
+    check(ClaudeModel.find("claude-haiku-5-5").supportsFallbacks == false && ClaudeModel.find("nope").id == ClaudeModel.defaultID, "model table")
+}
+
+if !CommandLine.arguments.contains("--offline") {
+    if SystemLanguageModel.default.isAvailable {
+        await suite("Live model") {
+            let r = try await RecipeRunner.run(RecipeBook.shared.find("sentiment")!, input: "I absolutely love this, best purchase all year.")
+            check(r.isJSON && r.text.contains("positive"), "structured sentiment")
+            let calc = try await AFM.run(GenerationRequest(prompt: "Use the calculator: what is 23 * 47?", tools: [.calculator]))
+            check(calc.text.contains("1081") || calc.text.contains("1,081"), "tool calling")
+        }
+    } else {
+        print("– Live model (skipped: Apple Intelligence unavailable)")
+    }
+}
+
+try? FileManager.default.removeItem(at: home)
+print("\n\(passed) checks passed, \(failed.count) failed")
+for f in failed { print("  ✗ " + f) }
+exit(failed.isEmpty ? 0 : 1)

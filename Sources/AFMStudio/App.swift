@@ -18,6 +18,7 @@ struct AFMStudioApp: App {
                 .environment(app)
                 .frame(minWidth: 980, minHeight: 640)
         }
+        .defaultSize(width: 1320, height: 860)
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -32,6 +33,7 @@ struct AFMStudioApp: App {
                 Button("Benchmark") { app.pane = .bench }.keyboardShortcut("6")
                 Button("History") { app.pane = .history }.keyboardShortcut("7")
                 Button("Model") { app.pane = .model }.keyboardShortcut("8")
+                Button("Claude") { app.pane = .claude }.keyboardShortcut("0")
                 Button("Integrations") { app.pane = .integrations }.keyboardShortcut("9")
             }
         }

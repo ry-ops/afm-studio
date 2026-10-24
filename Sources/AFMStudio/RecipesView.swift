@@ -267,7 +267,7 @@ struct RecipeEditor: View {
                         Text("Summarize the parts, then combine").tag(LongStrategy.reduce)
                         Text("Process each part and join in order").tag(LongStrategy.concatenate)
                         Text("Merge JSON from every part").tag(LongStrategy.merge)
-                        Text("Reject input that doesn't fit").tag(LongStrategy.none)
+                        Text("Reject input that doesn't fit").tag(LongStrategy.reject)
                     }
                 }
             }

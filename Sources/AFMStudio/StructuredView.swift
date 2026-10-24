@@ -137,18 +137,29 @@ struct StructuredView: View {
                             .background(.background, in: RoundedRectangle(cornerRadius: 10))
                     } else {
                         Card(title: "Fields", symbol: "list.bullet.rectangle") {
-                            TextField("Type name", text: $schemaName)
-                            ForEach($fields) { $f in
-                                HStack(spacing: 8) {
-                                    TextField("name", text: $f.name).frame(width: 130)
-                                    Picker("", selection: $f.kind) { ForEach(SchemaField.Kind.allCases) { Text($0.title).tag($0) } }.frame(width: 140)
-                                    if f.kind == .choice {
-                                        TextField("a, b, c", text: $f.choices)
-                                    } else {
-                                        TextField("description (optional)", text: $f.detail)
+                            LabeledContent("Type name") { TextField("", text: $schemaName) }
+                            Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                                GridRow {
+                                    Text("Field").gridColumnAlignment(.leading)
+                                    Text("Type")
+                                    Text("Choices or description")
+                                    Text("Req.").help("Required")
+                                    Text("")
+                                }
+                                .font(.caption).foregroundStyle(.secondary)
+                                ForEach($fields) { $f in
+                                    GridRow {
+                                        TextField("name", text: $f.name).frame(minWidth: 100, maxWidth: 150)
+                                        Picker("", selection: $f.kind) { ForEach(SchemaField.Kind.allCases) { Text($0.title).tag($0) } }
+                                            .labelsHidden().frame(width: 130)
+                                        if f.kind == .choice {
+                                            TextField("a, b, c", text: $f.choices).frame(minWidth: 120)
+                                        } else {
+                                            TextField("optional", text: $f.detail).frame(minWidth: 120)
+                                        }
+                                        Toggle("", isOn: $f.required).toggleStyle(.checkbox).labelsHidden().help("Required")
+                                        Button { fields.removeAll { $0.id == f.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
                                     }
-                                    Toggle("Required", isOn: $f.required).toggleStyle(.checkbox)
-                                    Button { fields.removeAll { $0.id == f.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
                                 }
                             }
                             Button("Add field", systemImage: "plus.circle") { fields.append(SchemaField(name: "field\(fields.count + 1)")) }
@@ -175,7 +186,7 @@ struct StructuredView: View {
                 }
                 .padding(22)
             }
-            .frame(minWidth: 460)
+            .frame(minWidth: 440)
 
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
@@ -197,7 +208,7 @@ struct StructuredView: View {
                 if let result { ResultStats(result: result) }
             }
             .padding(22)
-            .frame(minWidth: 340)
+            .frame(minWidth: 300)
         }
         .sheet(isPresented: $showSwift) { SwiftCodeSheet(code: swiftCode) }
     }

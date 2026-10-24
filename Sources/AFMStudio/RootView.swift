@@ -11,7 +11,7 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
         } detail: {
             Group {
-                if !app.status.available, app.pane != .model, app.pane != .integrations {
+                if !app.status.available, app.pane != .model, app.pane != .integrations, app.pane != .claude {
                     UnavailableView(status: app.status)
                 } else {
                     switch app.pane {
@@ -24,6 +24,7 @@ struct RootView: View {
                     case .bench: BenchView()
                     case .history: HistoryView()
                     case .model: ModelView()
+                    case .claude: ClaudeView()
                     case .integrations: IntegrationsView()
                     case nil: RecipesView()
                     }
@@ -75,6 +76,7 @@ struct Sidebar: View {
             }
             Section("System") {
                 Label("Model", systemImage: "cpu").tag(Pane.model)
+                Label("Claude", systemImage: "brain").tag(Pane.claude)
                 Label("Integrations", systemImage: "point.3.connected.trianglepath.dotted").tag(Pane.integrations)
             }
         }

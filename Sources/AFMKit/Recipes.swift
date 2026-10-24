@@ -23,7 +23,7 @@ public enum LongStrategy: String, Codable, Sendable, Hashable, CaseIterable {
     /// Structured output: merge JSON from every chunk.
     case merge
     /// Refuse input that doesn't fit.
-    case none
+    case reject
 }
 
 /// A reusable task: instructions, a prompt template and optionally a JSON Schema.
@@ -163,7 +163,7 @@ public enum RecipeRunner {
         if inputTokens <= budget {
             return try await once(input, partial: onPartial)
         }
-        guard recipe.strategy != .none else {
+        guard recipe.strategy != .reject else {
             throw AFMError(code: "context_exceeded", message: "Input is about \(inputTokens) tokens; this recipe handles at most \(budget).")
         }
 
@@ -183,7 +183,7 @@ public enum RecipeRunner {
         case .concatenate:
             final = GenerationResult(text: outputs.joined(separator: "\n\n"))
             onPartial?(final.text)
-        case .reduce, .none:
+        case .reduce, .reject:
             var joined = outputs.joined(separator: "\n\n")
             var depth = 0
             while await Chunker.countTokens(joined, model: model) > budget && depth < 3 {

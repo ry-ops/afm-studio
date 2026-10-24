@@ -65,7 +65,7 @@ extension Recipe {
                template: "Write a reply to this email. Intent: {{intent}}." + wrap,
                params: [RecipeParam(key: "intent", label: "Intent", defaultValue: "accept",
                                     choices: ["accept", "decline politely", "ask for more information", "say thank you", "propose a different time"])],
-               temperature: 0.6, permissive: true, long: .none, builtin: true),
+               temperature: 0.6, permissive: true, long: .reject, builtin: true),
 
         // MARK: Extract (structured)
         Recipe(id: "sentiment", title: "Sentiment", summary: "Sentiment label, confidence and a one-line reason, as JSON.",
@@ -136,6 +136,6 @@ extension Recipe {
                symbol: "asterisk", category: "Code",
                instructions: "You write correct regular expressions. Give the pattern on the first line, then one line explaining it.",
                template: "Write a regular expression that matches: {{input}}",
-               temperature: 0.1, long: .none, builtin: true),
+               temperature: 0.1, long: .reject, builtin: true),
     ]
 }

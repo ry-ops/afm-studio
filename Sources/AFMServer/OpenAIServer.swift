@@ -3,14 +3,14 @@ import Network
 import FoundationModels
 import AFMKit
 
-struct HTTPRequest {
-    var method: String
-    var path: String
+public struct HTTPRequest {
+    public var method: String
+    public var path: String
     var headers: [String: String]
     var body: Data
 
     /// Returns nil until the full request (headers + Content-Length body) has arrived.
-    static func parse(_ buf: Data) -> HTTPRequest? {
+    public static func parse(_ buf: Data) -> HTTPRequest? {
         guard let range = buf.range(of: Data("\r\n\r\n".utf8)) else { return nil }
         let head = String(decoding: buf[..<range.lowerBound], as: UTF8.self)
         var lines = head.components(separatedBy: "\r\n")

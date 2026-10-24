@@ -92,6 +92,7 @@ func parseArgs(_ raw: [String]) -> Args {
         case "-n", "--limit": a.limit = Int(value(arg)) ?? 20
         case "--stats", "-v": a.stats = true
         case "--version": a.positionals.insert("version", at: 0)
+        case "--model", "--effort": a.positionals.append(arg); a.positionals.append(value(arg))
         default:
             fail("unknown option \(arg)", hint: "Run `afm --help`.", code: 2)
         }
@@ -184,6 +185,7 @@ let help = """
   afm mcp config                  Print the commands to register it with Claude
   afm serve [--port 11535]        OpenAI-compatible server on 127.0.0.1
   afm studio                      Open the AFM Studio app
+  afm claude ...                  Claude via your API key, compare, MCP hook (afm claude help)
 
 \(bold("OPTIONS"))
   -s, --system TEXT     Instructions (system prompt)
@@ -502,7 +504,7 @@ func cmdChat(_ a: Args) async {
 // MARK: - Main
 
 var args = parseArgs(Array(CommandLine.arguments.dropFirst()))
-let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "help", "version"]
+let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "claude", "help", "version"]
 var command = "ask"
 if let first = args.positionals.first, commands.contains(first) {
     command = first
@@ -526,5 +528,6 @@ case "tools": cmdTools(args)
 case "mcp": await cmdMCP(args)
 case "serve": await cmdServe(args)
 case "studio": cmdStudio()
+case "claude": await cmdClaude(args)
 default: out(help)
 }

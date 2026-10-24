@@ -63,6 +63,11 @@ public struct AFMSettings: Codable, Sendable, Equatable {
     public var defaultTools: [ToolKind] = ToolKind.safeDefaults
     public var serverPort: Int = 11535
     public var mcpAllowFileTools: Bool = false
+    /// Claude (cloud) settings. The API key itself lives only in the Keychain.
+    public var claudeModel: String = ClaudeModel.defaultID
+    public var claudeEffort: String = "medium"
+    public var autoHookClaudeCode: Bool = true
+    public var autoHookClaudeDesktop: Bool = true
 
     public init() {}
 
@@ -87,5 +92,9 @@ public struct AFMSettings: Codable, Sendable, Equatable {
         defaultTools = (try? c.decode([ToolKind].self, forKey: .defaultTools)) ?? d.defaultTools
         serverPort = (try? c.decode(Int.self, forKey: .serverPort)) ?? d.serverPort
         mcpAllowFileTools = (try? c.decode(Bool.self, forKey: .mcpAllowFileTools)) ?? d.mcpAllowFileTools
+        claudeModel = (try? c.decode(String.self, forKey: .claudeModel)) ?? d.claudeModel
+        claudeEffort = (try? c.decode(String.self, forKey: .claudeEffort)) ?? d.claudeEffort
+        autoHookClaudeCode = (try? c.decode(Bool.self, forKey: .autoHookClaudeCode)) ?? d.autoHookClaudeCode
+        autoHookClaudeDesktop = (try? c.decode(Bool.self, forKey: .autoHookClaudeDesktop)) ?? d.autoHookClaudeDesktop
     }
 }

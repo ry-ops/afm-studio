@@ -4,3 +4,12 @@ build/
 *.xcodeproj
 xcuserdata/
 .DS_Store
+
+# Secrets never belong in this repo. The Anthropic API key lives in the macOS Keychain.
+.env
+.env.*
+*.env
+secrets.*
+*.key
+*.pem
+.anthropic*
