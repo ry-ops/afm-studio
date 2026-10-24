@@ -11,7 +11,7 @@ struct RootView: View {
                 .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
         } detail: {
             Group {
-                if !app.status.available, app.pane != .model, app.pane != .integrations, app.pane != .claude {
+                if !app.status.available, app.pane != .model, app.pane != .integrations, app.pane != .claude, app.pane != .github, app.pane != .integrationsHub {
                     UnavailableView(status: app.status)
                 } else {
                     switch app.pane {
@@ -25,6 +25,8 @@ struct RootView: View {
                     case .history: HistoryView()
                     case .model: ModelView()
                     case .claude: ClaudeView()
+                    case .github: GitHubView()
+                    case .integrationsHub: IntegrationsHubView()
                     case .integrations: IntegrationsView()
                     case nil: RecipesView()
                     }
@@ -74,10 +76,16 @@ struct Sidebar: View {
                 Label("Benchmark", systemImage: "speedometer").tag(Pane.bench)
                 Label("History", systemImage: "clock.arrow.circlepath").tag(Pane.history)
             }
+            Section("Integrations") {
+                Label("All Integrations", systemImage: "puzzlepiece.extension").tag(Pane.integrationsHub)
+                if app.settings.integrationPrefs["github"]?.enabled == true {
+                    Label("GitHub", systemImage: "chevron.left.forwardslash.chevron.right").tag(Pane.github)
+                }
+            }
             Section("System") {
                 Label("Model", systemImage: "cpu").tag(Pane.model)
                 Label("Claude", systemImage: "brain").tag(Pane.claude)
-                Label("Integrations", systemImage: "point.3.connected.trianglepath.dotted").tag(Pane.integrations)
+                Label("CLI & API", systemImage: "terminal").tag(Pane.integrations)
             }
         }
         .listStyle(.sidebar)

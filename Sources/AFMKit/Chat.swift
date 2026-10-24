@@ -31,6 +31,8 @@ public struct ChatSessionRecord: Codable, Identifiable, Sendable, Equatable, Has
     public var summary: String?
     public var contextStart: Int
     public var source: String
+    /// Integration ids (e.g. "github") whose tools the model may call in this chat.
+    public var integrations: [String]?
 
     public init(id: String = UUID().uuidString, title: String = "New chat", instructions: String = ChatSessionRecord.defaultInstructions,
                 config: ModelConfig = .default, options: GenOptions = .default, tools: [ToolKind] = ToolKind.safeDefaults, source: String = "studio") {
@@ -104,7 +106,8 @@ public final class ChatEngine: @unchecked Sendable {
     public func update(_ change: (inout ChatSessionRecord) -> Void) {
         let before = record
         change(&record)
-        if before.instructions != record.instructions || before.config != record.config || before.tools != record.tools || before.summary != record.summary {
+        if before.instructions != record.instructions || before.config != record.config || before.tools != record.tools
+            || before.summary != record.summary || before.integrations != record.integrations {
             session = nil
         }
         save()
@@ -132,7 +135,11 @@ public final class ChatEngine: @unchecked Sendable {
         let m = try record.config.makeModel()
         guard m.isAvailable else { throw AFMError.unavailable(.current()) }
         model = m
-        let tools = ToolRegistry.make(record.tools, tracker: tracker)
+        var tools = ToolRegistry.make(record.tools, tracker: tracker)
+        let allowed = IntegrationRegistry.chatEnabled
+        for id in record.integrations ?? [] {
+            if let integ = allowed.first(where: { $0.id == id }) { tools += integ.modelTools(tracker: tracker) }
+        }
         var entries: [Transcript.Entry] = [
             .instructions(Transcript.Instructions(segments: [.text(.init(content: effectiveInstructions))],
                                                   toolDefinitions: tools.map { Transcript.ToolDefinition(tool: $0) }))

@@ -1,6 +1,7 @@
 import Foundation
 import AFMKit
 import AFMServer
+import AFMGitHub
 
 // MARK: - Arguments
 
@@ -92,7 +93,8 @@ func parseArgs(_ raw: [String]) -> Args {
         case "-n", "--limit": a.limit = Int(value(arg)) ?? 20
         case "--stats", "-v": a.stats = true
         case "--version": a.positionals.insert("version", at: 0)
-        case "--model", "--effort": a.positionals.append(arg); a.positionals.append(value(arg))
+        case "--chat", "--claude", "--model", "--effort", "--base", "--from", "--to", "--focus", "--notes", "--from-repo", "--days", "--engine":
+            a.positionals.append(arg); a.positionals.append(value(arg))
         default:
             fail("unknown option \(arg)", hint: "Run `afm --help`.", code: 2)
         }
@@ -186,6 +188,8 @@ let help = """
   afm serve [--port 11535]        OpenAI-compatible server on 127.0.0.1
   afm studio                      Open the AFM Studio app
   afm claude ...                  Claude via your API key, compare, MCP hook (afm claude help)
+  afm integrations                List integrations and turn them on or off (all start off)
+  afm github ...                  Digests, summaries, triage, PR text, release notes, blog drafts (afm github help)
 
 \(bold("OPTIONS"))
   -s, --system TEXT     Instructions (system prompt)
@@ -503,8 +507,9 @@ func cmdChat(_ a: Args) async {
 
 // MARK: - Main
 
+IntegrationRegistry.install([GitHubIntegration()])
 var args = parseArgs(Array(CommandLine.arguments.dropFirst()))
-let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "claude", "help", "version"]
+let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "claude", "github", "gh", "integrations", "help", "version"]
 var command = "ask"
 if let first = args.positionals.first, commands.contains(first) {
     command = first
@@ -529,5 +534,7 @@ case "mcp": await cmdMCP(args)
 case "serve": await cmdServe(args)
 case "studio": cmdStudio()
 case "claude": await cmdClaude(args)
+case "github", "gh": await cmdGitHub(args)
+case "integrations": cmdIntegrations(args)
 default: out(help)
 }

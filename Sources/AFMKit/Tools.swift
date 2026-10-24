@@ -54,7 +54,7 @@ public final class ToolCallTracker: @unchecked Sendable {
     public var onCall: (@Sendable (String) -> Void)?
     public init(onCall: (@Sendable (String) -> Void)? = nil) { self.onCall = onCall }
     public var calls: [String] { lock.lock(); defer { lock.unlock() }; return _calls }
-    func record(_ s: String) {
+    public func record(_ s: String) {
         lock.lock(); _calls.append(s); lock.unlock()
         onCall?(s)
     }

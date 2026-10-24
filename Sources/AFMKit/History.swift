@@ -68,6 +68,8 @@ public struct AFMSettings: Codable, Sendable, Equatable {
     public var claudeEffort: String = "medium"
     public var autoHookClaudeCode: Bool = true
     public var autoHookClaudeDesktop: Bool = true
+    /// On/off switches per integration id. Integration data lives in its own file; credentials in the Keychain.
+    public var integrationPrefs: [String: IntegrationPrefs] = [:]
 
     public init() {}
 
@@ -96,5 +98,6 @@ public struct AFMSettings: Codable, Sendable, Equatable {
         claudeEffort = (try? c.decode(String.self, forKey: .claudeEffort)) ?? d.claudeEffort
         autoHookClaudeCode = (try? c.decode(Bool.self, forKey: .autoHookClaudeCode)) ?? d.autoHookClaudeCode
         autoHookClaudeDesktop = (try? c.decode(Bool.self, forKey: .autoHookClaudeDesktop)) ?? d.autoHookClaudeDesktop
+        integrationPrefs = (try? c.decode([String: IntegrationPrefs].self, forKey: .integrationPrefs)) ?? [:]
     }
 }

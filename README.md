@@ -12,9 +12,10 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 | --- | --- |
 | **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, adapters, and a menu-bar quick-ask panel. |
 | **`afm` CLI** | Pipe-friendly prompts, recipes, JSON extraction, resumable chats, token counts and benchmarks. |
-| **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model. Files are processed locally with `path`, so their contents never enter Claude's context. |
+| **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model, plus tools from any integration you turn on. Files are processed locally with `path`, so their contents never enter Claude's context. |
 | **OpenAI-compatible API** (`afm serve`) | `/v1/chat/completions` on `127.0.0.1`, with streaming and `response_format: json_schema`. |
 | **Claude section** | Your Anthropic API key in the macOS Keychain, on-device vs. Claude comparisons with cost, and automatic MCP registration in Claude Code and Claude Desktop. |
+| **Integrations** | Optional connections to outside services, each off until you turn it on. GitHub is the first. |
 
 ## Requirements
 
@@ -50,6 +51,7 @@ The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/a
 - **Benchmark:** time to first token and tokens per second on your Mac, charted.
 - **History:** every run from every surface, stored only on this Mac.
 - **Model:** availability, supported languages, and custom `.fmadapter` adapters.
+- **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.
 
 ## The CLI
@@ -108,6 +110,41 @@ afm claude compare "Explain mutexes vs semaphores"   # on-device vs Claude, with
 
 `ANTHROPIC_API_KEY` works as a fallback. Claude Opus 5.5 is the default model. Requests opt into server-side refusal fallbacks on the models that support them.
 
+## Integrations
+
+Integrations connect AFM Studio to outside services. Each one is its own module, and each starts **off**. Turning one on shows you what it signs in with, which hosts it talks to, and whether it can ever write. Then there are three switches:
+
+- **On:** the master switch. While it's off, no credentials are read and none of its tools exist.
+- **Tools in chat:** the on-device model may call its read-only tools. Each chat still opts in, because every tool costs context.
+- **Tools for Claude:** its tools appear in the afm MCP server. Restart Claude after changing this.
+
+```bash
+afm integrations                              # list them, with what each one touches
+afm integrations enable github --claude off   # on, but keep its tools away from Claude
+afm integrations disable github
+```
+
+### GitHub
+
+Read-only, drafts only. The on-device model does the reading and writing; AFM Studio never posts, labels or commits. Drafts come with links that open GitHub pre-filled so you can review and submit them yourself.
+
+| Feature | CLI | Tool for Claude |
+| --- | --- | --- |
+| Digest of what needs you: reviews, assignments, mentions, your PRs | `afm github digest --days 2` | `afm_github_digest` |
+| Summary of an issue or PR, including the diff | `afm github summarize owner/repo#12` | `afm_github_summarize` |
+| Triage: type, priority, labels from the repo's own set, missing info, possible duplicates | `afm github triage owner/repo#12` | `afm_github_triage` |
+| PR description for your current branch, or for an existing PR | `afm github pr ~/code/app` | `afm_github_pr_description` |
+| Release notes since the last tag, grouped by commit type | `afm github release ~/code/app` | `afm_github_release_notes` |
+| Project brief: state, activity, open work, next steps | `afm github brief owner/repo` | `afm_github_repo_brief` |
+| Up to five next-step issue drafts | `afm github next owner/repo` | `afm_github_next_steps` |
+| Blog post drafts in your blog repo's format | `afm github blog draft "topic" --from-repo owner/repo` | `afm_github_blog_draft` |
+
+**Sign-in.** A GitHub token in the Keychain wins (`afm github auth set`, or the app's GitHub > Account tab). Otherwise AFM Studio borrows your `gh` login, then `GITHUB_TOKEN`. A fine-grained, read-only token is the tightest option.
+
+**Blog drafts.** `afm github blog setup owner/blog-repo` reads the repo once and learns where posts live, the frontmatter author, the allowed categories, and any "Writing Style" section in its docs. That setup stays on this Mac. Drafts are saved as Markdown with matching frontmatter. The on-device writer plans an outline and then writes each part, because a whole post won't fit in its context. It can still get facts wrong, so give it good notes and read the result. With an Anthropic key you can pick Claude as the writer instead.
+
+**Honest limits.** Summaries and triage are solid. PR descriptions summarize each changed file first so large diffs still fit. Long-form writing is where a 3-billion-parameter model shows its size.
+
 ## OpenAI-compatible API
 
 ```bash
@@ -135,8 +172,9 @@ It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `respons
 ## Project layout
 
 ```
-Sources/AFMKit       engine: generation, schemas, tools, recipes, chunking, chats, Claude client, Keychain, hooks
+Sources/AFMKit       engine: generation, schemas, tools, recipes, chunking, chats, Claude client, Keychain, hooks, integration registry
 Sources/AFMServer    MCP stdio server and OpenAI-compatible HTTP server
+Sources/AFMGitHub    the GitHub integration (its own module)
 Sources/afm          the CLI
 Sources/AFMStudio    the SwiftUI app
 Tests/SelfTest       self-test (swift run afm-selftest)

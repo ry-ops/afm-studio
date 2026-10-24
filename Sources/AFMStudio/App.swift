@@ -1,12 +1,14 @@
 import SwiftUI
 import AppKit
 import AFMKit
+import AFMGitHub
 
 @main
 struct AFMStudioApp: App {
     @State private var app = AppState()
 
     init() {
+        IntegrationRegistry.install([GitHubIntegration()])
         // Lets the app behave normally even when launched as a bare executable (swift run).
         NSApplication.shared.setActivationPolicy(.regular)
         DispatchQueue.main.async { NSApp.activate() }
@@ -34,7 +36,9 @@ struct AFMStudioApp: App {
                 Button("History") { app.pane = .history }.keyboardShortcut("7")
                 Button("Model") { app.pane = .model }.keyboardShortcut("8")
                 Button("Claude") { app.pane = .claude }.keyboardShortcut("0")
-                Button("Integrations") { app.pane = .integrations }.keyboardShortcut("9")
+                Button("CLI & API") { app.pane = .integrations }.keyboardShortcut("9")
+                Button("Integrations") { app.pane = .integrationsHub }.keyboardShortcut("i", modifiers: [.command, .shift])
+                Button("GitHub") { app.pane = .github }.keyboardShortcut("g", modifiers: [.command, .shift])
             }
         }
 

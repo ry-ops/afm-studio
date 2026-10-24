@@ -22,6 +22,7 @@ final class ChatViewModel {
     var options: GenOptions
     var config: ModelConfig
     var tools: Set<ToolKind>
+    var integrations: Set<String>
 
     init(engine: ChatEngine, app: AppState) {
         self.engine = engine
@@ -31,6 +32,7 @@ final class ChatViewModel {
         options = engine.record.options
         config = engine.record.config
         tools = Set(engine.record.tools)
+        integrations = Set(engine.record.integrations ?? [])
         Task { await refreshUsage() }
     }
 
@@ -45,7 +47,8 @@ final class ChatViewModel {
 
     func applySettings() {
         let i = instructions, o = options, c = config, t = ToolKind.allCases.filter { tools.contains($0) }
-        engine.update { r in r.instructions = i; r.options = o; r.config = c; r.tools = t }
+        let integ = IntegrationRegistry.chatEnabled.map(\.id).filter { integrations.contains($0) }
+        engine.update { r in r.instructions = i; r.options = o; r.config = c; r.tools = t; r.integrations = integ.isEmpty ? nil : integ }
         Task { await refreshUsage() }
     }
 
@@ -340,6 +343,19 @@ struct ChatInspector: View {
                         vm.applySettings()
                     })) {
                         Label { VStack(alignment: .leading) { Text(t.title); Text(t.summary).font(.caption).foregroundStyle(.secondary) } } icon: { Image(systemName: t.symbol) }
+                    }
+                }
+            }
+            Section("Integrations") {
+                if IntegrationRegistry.chatEnabled.isEmpty {
+                    Text("No integrations are on. Turn one on in Integrations to give the model its tools.").font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(IntegrationRegistry.chatEnabled, id: \.id) { integ in
+                    Toggle(isOn: Binding(get: { vm.integrations.contains(integ.id) }, set: { on in
+                        if on { vm.integrations.insert(integ.id) } else { vm.integrations.remove(integ.id) }
+                        vm.applySettings()
+                    })) {
+                        Label { VStack(alignment: .leading) { Text(integ.name); Text("Read-only tools the model can call. Each one uses some of the 4K context.").font(.caption).foregroundStyle(.secondary) } } icon: { Image(systemName: integ.symbol) }
                     }
                 }
             }

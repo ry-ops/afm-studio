@@ -78,7 +78,17 @@ public enum AFM {
             let tools = ToolRegistry.make(req.tools, tracker: tracker)
             let instructions = req.instructions.flatMap { $0.isEmpty ? nil : Instructions($0) }
             let session = LanguageModelSession(model: model, tools: tools, instructions: instructions)
-            let opts = req.options.generationOptions
+            var genOptions = req.options
+            if genOptions.maxTokens == nil {
+                // Cap the reply at the room left in the context, so a runaway reply ends early instead of failing.
+                var used = (try? await model.tokenCount(for: Prompt(req.prompt))) ?? Chunker.estimate(req.prompt)
+                if let i = req.instructions, !i.isEmpty { used += (try? await model.tokenCount(for: Instructions(i))) ?? Chunker.estimate(i) }
+                if let schema = req.schema { used += (try? await model.tokenCount(for: schema)) ?? 300 }
+                if !tools.isEmpty { used += (try? await model.tokenCount(for: tools)) ?? 150 * tools.count }
+                let room = model.contextSize - used - 120
+                if room >= 64 { genOptions.maxTokens = room }
+            }
+            let opts = genOptions.generationOptions
             let prompt = Prompt(req.prompt)
             let start = Date()
             var first: Double?

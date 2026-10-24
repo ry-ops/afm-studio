@@ -5,6 +5,7 @@ import Foundation
 import FoundationModels
 import AFMKit
 import AFMServer
+import AFMGitHub
 
 var passed = 0
 var failed: [String] = []
@@ -31,6 +32,8 @@ func checkThrows(_ what: String, line: Int = #line, _ op: () throws -> Void) {
 
 let home = FileManager.default.temporaryDirectory.appendingPathComponent("afm-selftest-\(getpid())")
 setenv("AFM_HOME", home.path, 1)
+
+IntegrationRegistry.install([GitHubIntegration()])
 
 await suite("Calculator") {
     check(try Calculator.evaluate("2 + 3 * 4") == 14, "precedence")
@@ -135,6 +138,44 @@ await suite("Claude wiring") {
     checkThrows("rejects non-Anthropic keys") { try ClaudeKeychain.save("hunter2") }
     check(ClaudeKeychain.masked("sk-ant-api03-abcdefghijklmnop9f2c") == "sk-ant-api…9f2c", "key masking")
     check(ClaudeModel.find("claude-haiku-5-5").supportsFallbacks == false && ClaudeModel.find("nope").id == ClaudeModel.defaultID, "model table")
+}
+
+await suite("Integrations") {
+    let gh = GitHubIntegration.integrationID
+    check(IntegrationRegistry.isEnabled(gh) == false, "GitHub starts off")
+    check(IntegrationRegistry.mcpTools.isEmpty, "no integration tools for Claude while off")
+    check(IntegrationRegistry.chatEnabled.isEmpty, "no integration tools in chat while off")
+    checkThrows("no GitHub client (and no token read) while off") { _ = try GitHubClient.make() }
+    check(IntegrationRegistry.isIntegrationTool("afm_github_digest"), "tool belongs to an installed integration")
+
+    final class Cap: @unchecked Sendable { var lines: [String] = []; let l = NSLock(); func add(_ s: String) { l.lock(); lines.append(s); l.unlock() } }
+    let cap = Cap()
+    let server = MCPServer(output: cap.add)
+    await server.handleLine(#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"afm_github_digest","arguments":{}}}"#)
+    check(cap.lines.first?.contains("turned off") == true && cap.lines.first?.contains("\"isError\":true") == true, "MCP refuses a tool from an integration that's off")
+
+    IntegrationRegistry.setPrefs(gh) { $0.enabled = true }
+    check(IntegrationRegistry.mcpTools.filter { $0.name.hasPrefix("afm_github_") }.count == 8, "8 GitHub tools for Claude once on")
+    check(IntegrationRegistry.chatEnabled.count == 1, "GitHub chat tools once on")
+    await server.handleLine(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
+    let list = try JSONSerialization.jsonObject(with: Data(cap.lines.last!.utf8)) as! [String: Any]
+    check(((list["result"] as! [String: Any])["tools"] as! [Any]).count == 23, "MCP lists 15 core + 8 GitHub tools")
+    IntegrationRegistry.setPrefs(gh) { $0.claude = false }
+    check(IntegrationRegistry.mcpTools.isEmpty && IntegrationRegistry.chatEnabled.count == 1, "Claude switch is separate from chat")
+    IntegrationRegistry.setPrefs(gh) { $0 = IntegrationPrefs() }
+    check(IntegrationRegistry.isEnabled(gh) == false, "turned back off")
+
+    check(GHRef.parse("ry-ops/afm-studio#12") == GHRef(owner: "ry-ops", repo: "afm-studio", number: 12), "ref: owner/repo#n")
+    check(GHRef.parse("https://github.com/a/b/pull/7")?.number == 7, "ref: PR URL")
+    check(GHRef.parse("https://github.com/a/b/issues/3")?.description == "a/b#3", "ref: issue URL")
+    check(GHRef.parse("git@github.com:a/b.git") == nil || GHRef.parse("github.com/a/b.git")?.slug == "a/b", "ref: .git suffix")
+    check(GHRef.parse("nonsense") == nil, "ref: rejects junk")
+    let groups = GitHubWorkflows.group(["feat(ui): add dark mode", "fix: crash on launch", "chore: bump deps", "Update README"])
+    check(groups.map(\.0) == ["Features", "Fixes", "Maintenance", "Other"] && groups[0].1 == ["add dark mode"], "conventional commit grouping")
+    let patches = GitHubWorkflows.filePatches("diff --git a/x.swift b/x.swift\n+one\ndiff --git a/y.md b/y.md\n+two")
+    check(patches.map(\.0) == ["x.swift", "y.md"], "diff split per file")
+    check(GitHubWorkflows.similarity("App crashes when opening settings", "Crash when opening the settings screen") > 0.25, "duplicate similarity")
+    check(BlogWriter.slugify("Building AFM Studio: Apple's model!") == "building-afm-studio-apple-s-model", "blog slug")
 }
 
 if !CommandLine.arguments.contains("--offline") {

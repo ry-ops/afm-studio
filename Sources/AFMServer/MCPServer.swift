@@ -82,7 +82,7 @@ public final class MCPServer: @unchecked Sendable {
         case "ping":
             return [:]
         case "tools/list":
-            return ["tools": MCPTools.definitions(allowFiles: true)]
+            return ["tools": MCPTools.definitions(allowFiles: true) + IntegrationRegistry.mcpTools.map(\.mcpDefinition)]
         case "tools/call":
             guard let name = params["name"] as? String else { throw RPCError(code: -32602, message: "Missing tool name") }
             let args = (params["arguments"] as? [String: Any]) ?? [:]
@@ -115,7 +115,17 @@ public final class MCPServer: @unchecked Sendable {
     func callTool(_ name: String, _ args: [String: Any]) async -> [String: Any] {
         let start = Date()
         do {
-            let out = try await gate.serial { try await MCPTools.call(name, args, server: self) }
+            let out: ToolOutput
+            if IntegrationRegistry.isIntegrationTool(name) {
+                guard let integ = IntegrationRegistry.mcpTool(named: name) else {
+                    throw AFMError(code: "integration_off", message: "That integration is turned off in AFM Studio.",
+                                   suggestion: "Turn it on (and allow it for Claude) in AFM Studio > Integrations.")
+                }
+                let o = try await gate.serial { try await integ.run(args) }
+                out = ToolOutput(text: o.text, structured: o.json)
+            } else {
+                out = try await gate.serial { try await MCPTools.call(name, args, server: self) }
+            }
             History.append(HistoryEntry(source: "mcp", kind: name, title: name, input: MCPTools.preview(args), output: out.text,
                                         seconds: Date().timeIntervalSince(start), outputTokens: out.meta["output_tokens"] as? Int))
             var r: [String: Any] = ["content": [["type": "text", "text": out.text]], "isError": false]
@@ -141,6 +151,7 @@ public final class MCPServer: @unchecked Sendable {
     static let instructions = """
     AFM Studio gives you Apple's on-device foundation model (about 3B parameters, 4,096-token context) running privately on this Mac. It is free, offline and fast.
     Use it to offload text work: summarizing, extracting fields into JSON, classifying, tagging, rewriting, proofreading and translating.
+    Integration tools (for example afm_github_*) appear only when the user has turned that integration on. The afm_github_* tools read GitHub (read-only) and do the reading and drafting on device: summaries, triage, digests, PR descriptions, release notes, repo briefs, next-step issues and blog drafts. They never post, label or commit; drafts come with pre-filled links the user can open.
     Most tools accept `path` instead of `text`. With `path`, a file in the user's home folder is processed locally and never enters your context, which saves your tokens on large files. Long inputs are split into chunks and combined automatically.
     It is weak at world knowledge, math and writing code. Treat its output as a draft and verify facts.
     """

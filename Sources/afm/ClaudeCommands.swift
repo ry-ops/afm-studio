@@ -1,5 +1,6 @@
 import Foundation
 import AFMKit
+import AFMGitHub
 
 let claudeHelp = """
 \(bold("afm claude")) — the cloud side: Claude via your Anthropic API key, plus Claude MCP wiring.

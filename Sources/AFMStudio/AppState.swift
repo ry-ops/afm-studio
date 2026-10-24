@@ -1,10 +1,11 @@
 import SwiftUI
 import AFMKit
 import AFMServer
+import AFMGitHub
 
 enum Pane: Hashable {
     case chat(String)
-    case recipes, structured, batch, compare, tokens, bench, history, model, claude, integrations
+    case recipes, structured, batch, compare, tokens, bench, history, model, claude, integrations, github, integrationsHub
 }
 
 @Observable @MainActor
@@ -17,6 +18,7 @@ final class AppState {
     var chatModels: [String: ChatViewModel] = [:]
     let server = ServerController()
     let claude = ClaudeState()
+    let github = GitHubState()
 
     init() {
         reloadSessions()

@@ -15,8 +15,10 @@ let package = Package(
     targets: [
         .target(name: "AFMKit", swiftSettings: v5),
         .target(name: "AFMServer", dependencies: ["AFMKit"], swiftSettings: v5),
-        .executableTarget(name: "afm", dependencies: ["AFMKit", "AFMServer"], swiftSettings: v5),
-        .executableTarget(name: "AFMStudio", dependencies: ["AFMKit", "AFMServer"], swiftSettings: v5),
-        .executableTarget(name: "afm-selftest", dependencies: ["AFMKit", "AFMServer"], path: "Tests/SelfTest", swiftSettings: v5),
+        // Integrations: one module each, built on AFMKit, switched on per user.
+        .target(name: "AFMGitHub", dependencies: ["AFMKit"], swiftSettings: v5),
+        .executableTarget(name: "afm", dependencies: ["AFMKit", "AFMServer", "AFMGitHub"], swiftSettings: v5),
+        .executableTarget(name: "AFMStudio", dependencies: ["AFMKit", "AFMServer", "AFMGitHub"], swiftSettings: v5),
+        .executableTarget(name: "afm-selftest", dependencies: ["AFMKit", "AFMServer", "AFMGitHub"], path: "Tests/SelfTest", swiftSettings: v5),
     ]
 )

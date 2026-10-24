@@ -72,7 +72,7 @@ struct IntegrationsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                PaneHeader(title: "Integrations", subtitle: "Use the on-device model from Terminal, Claude and any OpenAI-compatible tool.", symbol: "point.3.connected.trianglepath.dotted")
+                PaneHeader(title: "CLI & API", subtitle: "Use the on-device model from Terminal, Claude and any OpenAI-compatible tool.", symbol: "point.3.connected.trianglepath.dotted")
 
                 Card(title: "Command line", symbol: "terminal") {
                     HStack {
