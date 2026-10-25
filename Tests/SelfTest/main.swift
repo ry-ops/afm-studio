@@ -130,6 +130,27 @@ await suite("CLI link") {
     check(!ClaudeHook.isInstalledApp(URL(fileURLWithPath: "/ApplicationsX/AFM Studio.app")), "a look-alike folder doesn't")
 }
 
+await suite("GitHub sign-in lookup") {
+    let candidates = GitHubAuth.ghCandidates(path: "/usr/bin:/bin:/usr/bin", home: "/Users/x")
+    check(candidates.first == "/usr/bin/gh", "the PATH is searched first")
+    check(candidates.contains("/Users/x/.local/bin/gh"), "~/.local/bin is searched even when the PATH lacks it")
+    check(candidates.contains("/opt/homebrew/bin/gh") && candidates.contains("/usr/local/bin/gh"), "Homebrew folders are searched")
+    check(candidates.count == Set(candidates).count, "no folder is searched twice")
+    check(GitHubAuth.ghCandidates(path: "bin:.:/usr/bin", home: "/Users/x").allSatisfy { $0.hasPrefix("/") }, "relative PATH entries are skipped")
+
+    let dir = home.appendingPathComponent("fake-gh")
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let good = dir.appendingPathComponent("gh").path
+    try "#!/bin/sh\n[ \"$1 $2\" = \"auth token\" ] && echo gho_selftest\n".write(toFile: good, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: good)
+    check(GitHubAuth.findGH(in: ["/nonexistent/gh", good]) == good, "finds gh outside the PATH")
+    check(GitHubAuth.ghToken(at: good) == "gho_selftest", "reads the token from gh")
+    let out = dir.appendingPathComponent("gh-out").path
+    try "#!/bin/sh\necho 'not logged in' >&2; exit 1\n".write(toFile: out, atomically: true, encoding: .utf8)
+    try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: out)
+    check(GitHubAuth.ghToken(at: out) == nil, "no token when gh isn't signed in")
+}
+
 await suite("Updates") {
     check(SemVer("v0.2.0")! > SemVer("0.1.0")!, "newer minor wins")
     check(SemVer("0.10.0")! > SemVer("0.9.9")!, "numbers compare as numbers")

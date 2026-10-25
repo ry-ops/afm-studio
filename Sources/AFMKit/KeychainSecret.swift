@@ -64,4 +64,18 @@ public enum Shell {
         p.waitUntilExit()
         return (p.terminationStatus, String(decoding: data, as: UTF8.self))
     }
+
+    /// Runs an executable directly, without a shell, and returns its exit code and standard output.
+    public static func exec(_ path: String, _ arguments: [String]) -> (Int32, String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: path)
+        p.arguments = arguments
+        let out = Pipe()
+        p.standardOutput = out
+        p.standardError = Pipe()
+        do { try p.run() } catch { return (-1, error.localizedDescription) }
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        return (p.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
 }
