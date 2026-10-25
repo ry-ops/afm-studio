@@ -144,7 +144,7 @@ public struct GitHubClient: Sendable {
         return GitHubClient(token: t)
     }
 
-    static let decoder: JSONDecoder = {
+    public static let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
         return d
@@ -162,7 +162,7 @@ public struct GitHubClient: Sendable {
         let http = resp as? HTTPURLResponse
         let status = http?.statusCode ?? 0
         guard (200..<300).contains(status) else {
-            let msg = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["message"] as? String ?? "HTTP \(status)"
+            let msg = Self.errorMessage(data, status: status)
             switch status {
             case 401: throw AFMError(code: "github_auth", message: "GitHub rejected the token.", suggestion: "Check `afm github auth status`.")
             case 403 where http?.value(forHTTPHeaderField: "x-ratelimit-remaining") == "0":
@@ -174,6 +174,20 @@ public struct GitHubClient: Sendable {
         return data
     }
 
+    /// GitHub's error text: the top-level message plus each detail in `errors`, which says what was wrong.
+    public static func errorMessage(_ data: Data, status: Int) -> String {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return "HTTP \(status)" }
+        let head = json["message"] as? String ?? "HTTP \(status)"
+        let details: [String] = (json["errors"] as? [Any] ?? []).compactMap { e in
+            if let s = e as? String { return s }
+            guard let d = e as? [String: Any] else { return nil }
+            if let m = d["message"] as? String { return m }
+            if let f = d["field"] as? String, let c = d["code"] as? String { return "\(f) is \(c)" }
+            return nil
+        }
+        return details.isEmpty ? head : head + ": " + details.joined(separator: "; ")
+    }
+
     public func get<T: Decodable>(_ path: String, _ query: [String: String] = [:]) async throws -> T {
         let d = try await data(path, query: query)
         do { return try Self.decoder.decode(T.self, from: d) }
@@ -181,6 +195,8 @@ public struct GitHubClient: Sendable {
     }
 
     public func me() async throws -> GHUser { try await get("/user") }
+    /// The organizations the signed-in user belongs to.
+    public func orgs() async throws -> [GHUser] { try await get("/user/orgs", ["per_page": "100"]) }
     public func repo(_ slug: String) async throws -> GHRepo { try await get("/repos/\(slug)") }
 
     public func myRepos(limit: Int = 50) async throws -> [GHRepo] {
@@ -222,8 +238,43 @@ public struct GitHubClient: Sendable {
         return tags.first?.name
     }
     public func search(_ q: String, limit: Int = 20) async throws -> [GHIssue] {
-        let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": q, "per_page": String(min(limit, 100)), "sort": "updated"])
+        let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": try Self.checkedQuery(q), "per_page": String(min(limit, 100)), "sort": "updated"])
         return r.items
+    }
+
+    /// Every match up to `maxItems`, newest update first, with GitHub's total count.
+    public func searchAll(_ q: String, maxItems: Int = 300) async throws -> (total: Int, items: [GHIssue]) {
+        let query = try Self.checkedQuery(q)
+        var items: [GHIssue] = [], total = 0, page = 1
+        while items.count < maxItems {
+            let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": query, "per_page": "100", "page": String(page), "sort": "updated"])
+            total = r.totalCount
+            items += r.items
+            if r.items.count < 100 || items.count >= total { break }
+            page += 1
+        }
+        return (total, Array(items.prefix(maxItems)))
+    }
+
+    /// Refuses an empty query, which GitHub rejects as "Validation Failed", and fixes `me` shortcuts.
+    public static func checkedQuery(_ q: String) throws -> String {
+        let n = normalizeQuery(q)
+        guard !n.isEmpty else {
+            throw AFMError(code: "bad_query", message: "The GitHub search query is empty.", suggestion: "Give search terms or qualifiers, e.g. `is:open is:pr author:@me`.")
+        }
+        return n
+    }
+
+    /// GitHub reads `author:me` as a user named "me". Rewrites these to `@me`, which means the signed-in user.
+    public static func normalizeQuery(_ q: String) -> String {
+        let keys: Set<String> = ["author", "assignee", "user", "involves", "mentions", "commenter", "review-requested", "reviewed-by"]
+        return q.split(whereSeparator: \.isWhitespace).map { token -> String in
+            let t = String(token)
+            let neg = t.hasPrefix("-") ? "-" : ""
+            let parts = t.dropFirst(neg.count).split(separator: ":", maxSplits: 1).map(String.init)
+            guard parts.count == 2, keys.contains(parts[0].lowercased()), parts[1].lowercased() == "me" else { return t }
+            return "\(neg)\(parts[0]):@me"
+        }.joined(separator: " ")
     }
 }
 
