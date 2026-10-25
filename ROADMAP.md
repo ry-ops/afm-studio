@@ -47,7 +47,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 | Open PRs in my orgs' repos | | 5 of 5 answered 143 |
 | PRs I opened, reviews waiting on me | | Right tool every time. 1 run overflowed context before the cap, 1 later run read PRs it didn't need |
 
-**Known limits.** The model still slips sometimes. One run said 199 when the tool said 192. Another added up the org count wrongly, which is why the summary now gives the split ready-made. One listed Dependabot's PRs as yours after the tool said you had none. The numbers it's given are right, so the answers are worth checking against the tool call.
+**Known limits.** The model still slips sometimes. One run said 199 when the tool said 192. Another added up the org count wrongly, which is why the summary now gives the split ready-made. One listed Dependabot's PRs as yours after the tool said you had none. The numbers it's given are right, so the answers are worth checking against the tool call. Old answers also anchor it. In a chat that began before this fix, its earlier "no open PRs" answer stayed in the history, and the model repeated it in 3 of 3 replays even though the new tool returned 193. In fresh chats, with the same instructions and tools, it reported the right totals in 9 of 9. Start a new chat after a fix like this.
 
 ## 1. Self-update from GitHub
 
