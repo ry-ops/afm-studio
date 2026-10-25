@@ -9,7 +9,7 @@ struct BenchView: View {
     @ViewState private var error: String?
     @ViewState private var task: Task<Void, Never>?
 
-    var meanTPS: Double { runs.isEmpty ? 0 : runs.map(\.tokensPerSecond).reduce(0, +) / Double(runs.count) }
+    var speed: Double? { Bench.decodeSpeed(runs) }
     var medianTTFT: Double { runs.isEmpty ? 0 : runs.map(\.firstToken).sorted()[runs.count / 2] }
     var totalTokens: Int { runs.map(\.outputTokens).reduce(0, +) }
 
@@ -30,14 +30,15 @@ struct BenchView: View {
                 }
                 if let error { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange) }
                 HStack(spacing: 14) {
-                    tile("Mean speed", runs.isEmpty ? "–" : String(format: "%.1f tok/s", meanTPS), "speedometer")
+                    tile("Decode speed", speed.map { String(format: "%.1f tok/s", $0) } ?? "–", "speedometer")
                     tile("Median first token", runs.isEmpty ? "–" : String(format: "%.2f s", medianTTFT), "bolt")
                     tile("Tokens generated", runs.isEmpty ? "–" : "\(totalTokens)", "text.word.spacing")
                     tile("Context window", "\(AFM.contextSize)", "rectangle.compress.vertical")
                 }
                 if !runs.isEmpty {
                     Card(title: "Decode speed by task", symbol: "chart.bar") {
-                        Chart(runs) { r in
+                        // Replies too short to time have no speed, so they get no bar.
+                        Chart(runs.filter { $0.tokensPerSecond > 0 }) { r in
                             BarMark(x: .value("Task", r.task), y: .value("Tokens/sec", r.tokensPerSecond))
                                 .foregroundStyle(by: .value("Round", "Round \(r.round)"))
                                 .position(by: .value("Round", "Round \(r.round)"))
@@ -63,7 +64,7 @@ struct BenchView: View {
                         TableColumn("First token") { Text(String(format: "%.2fs", $0.firstToken)).monospacedDigit() }
                         TableColumn("Total") { Text(String(format: "%.2fs", $0.total)).monospacedDigit() }
                         TableColumn("Tokens") { Text("\($0.outputTokens)").monospacedDigit() }
-                        TableColumn("Tok/s") { Text(String(format: "%.1f", $0.tokensPerSecond)).monospacedDigit() }
+                        TableColumn("Tok/s") { Text(Bench.format($0.tokensPerSecond)).monospacedDigit() }
                     }
                     .frame(minHeight: 200)
                 } else if !running {

@@ -111,6 +111,15 @@ await suite("JSON fences") {
     check(JSONRender.unfenced("```json\n{\"c\": 3}") == "{\"c\": 3}", "unclosed fence")
 }
 
+await suite("Benchmark math") {
+    check(GenerationResult(text: "Tokyo", seconds: 0.38, firstTokenSeconds: 0.3799, outputTokens: 2).tokensPerSecond == nil, "two-token reply isn't timed")
+    check(GenerationResult(text: "", seconds: 3.0, firstTokenSeconds: 0.5, outputTokens: 101).tokensPerSecond == 40, "speed counts tokens after the first")
+    let runs = [BenchRun(round: 1, task: "a", firstToken: 0.4, total: 0.4, outputTokens: 2, tokensPerSecond: 0),
+                BenchRun(round: 1, task: "b", firstToken: 0.5, total: 3.0, outputTokens: 101, tokensPerSecond: 40),
+                BenchRun(round: 1, task: "c", firstToken: 0.5, total: 1.0, outputTokens: 31, tokensPerSecond: 60)]
+    check(Bench.decodeSpeed(runs) == 130.0 / 3.0, "overall speed weights by tokens, skips untimed runs")
+}
+
 await suite("Model config") {
     // Settings written before adapters were removed still carry an adapterPath key.
     let legacy = #"{"guardrails":"permissive","useCase":"tagging","adapterPath":"/old/x.fmadapter"}"#

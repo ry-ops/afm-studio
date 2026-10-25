@@ -331,11 +331,13 @@ func cmdBench(_ a: Args) async {
     out(dim("  task           first token   total    tokens   tok/s"))
     do {
         let runs = try await Bench.run(rounds: a.rounds, config: a.config) { r in
-            out(String(format: "  %@ %8.2fs %9.2fs %8d %7.1f", r.task.padding(toLength: 14, withPad: " ", startingAt: 0), r.firstToken, r.total, r.outputTokens, r.tokensPerSecond))
+            let tps = Bench.format(r.tokensPerSecond)
+            out(String(format: "  %@ %8.2fs %9.2fs %8d ", r.task.padding(toLength: 14, withPad: " ", startingAt: 0), r.firstToken, r.total, r.outputTokens)
+                + String(repeating: " ", count: max(0, 7 - tps.count)) + tps)
         }
-        let tps = runs.map(\.tokensPerSecond).reduce(0, +) / Double(max(runs.count, 1))
         let ttft = runs.map(\.firstToken).sorted()[runs.count / 2]
-        out(bold(String(format: "  median first token %.2fs · mean %.1f tok/s", ttft, tps)))
+        let speed = Bench.decodeSpeed(runs).map { String(format: "%.1f tok/s", $0) } ?? "–"
+        out(bold(String(format: "  median first token %.2fs · decode speed %@", ttft, speed)))
         if a.json {
             let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted]
             out(String(decoding: (try? enc.encode(runs)) ?? Data(), as: UTF8.self))

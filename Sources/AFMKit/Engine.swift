@@ -46,11 +46,17 @@ public struct GenerationResult: Codable, Sendable, Equatable, Hashable {
         self.chunks = chunks
     }
 
+    /// Decode speed: the tokens after the first, over the time after the first token. Nil when the
+    /// reply is too short to time, because a two-token answer ends a millisecond after it starts.
     public var tokensPerSecond: Double? {
-        guard let o = outputTokens, seconds > 0 else { return nil }
-        let gen = seconds - (firstTokenSeconds ?? 0)
-        return Double(o) / max(gen, 0.001)
+        guard let o = outputTokens, o >= Self.minTimedTokens, seconds > 0 else { return nil }
+        guard let first = firstTokenSeconds else { return Double(o) / seconds }
+        let gen = seconds - first
+        guard gen >= 0.05 else { return nil }
+        return Double(o - 1) / gen
     }
+
+    public static let minTimedTokens = 8
 
     public var statsLine: String {
         var parts = [String(format: "%.2fs", seconds)]
