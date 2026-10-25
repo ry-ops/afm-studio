@@ -59,5 +59,5 @@ if [ "${1:-}" = "--install" ]; then
   rm -rf "$HOME/Applications/AFM Studio.app"
   cp -R "$APP" "$HOME/Applications/"
   echo "✓ Installed to ~/Applications/AFM Studio.app"
-  echo "  Install the afm command from the app's Integrations pane, or run: bash scripts/install.sh"
+  echo "  Install the afm command from the app's CLI & API pane, or run: bash scripts/install.sh"
 fi

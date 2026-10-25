@@ -36,13 +36,13 @@ bash scripts/build-app.sh --install  # same, then copies it to ~/Applications
 bash scripts/install.sh              # CLI only: links afm into ~/.local/bin
 ```
 
-The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
+The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
 
 ## The app
 
 ![Structured output](docs/images/structured.png)
 
-- **Chat:** streaming replies with tool calls shown inline: date and time, an exact calculator, and system info. Opt-in tools can read files in your home folder or fetch a web page. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically.
+- **Chat:** streaming replies with tool calls shown inline. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically.
 - **Recipes:** summarize, key points, ask-the-document, rewrite, proofread, translate, sentiment, classify, entities, action items, meeting notes, tags, quiz, commit messages and more. Inputs longer than the context are split on paragraph and sentence boundaries, run piece by piece, and combined. You can write your own recipes in the app or as JSON files.
 - **Structured output:** build a schema with fields or paste JSON Schema, then watch valid JSON stream in. Apple's constrained decoding guarantees the result matches the schema. One click exports the schema as Swift `@Generable` code.
 - **Batch:** drop files or folders, pick a recipe, then export the results as JSON Lines, CSV or Markdown.
@@ -52,8 +52,28 @@ The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/a
 - **History:** every run from every surface, stored only on this Mac.
 - **Model:** availability, supported languages, and custom `.fmadapter` adapters.
 - **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
-- **Terminal:** a VS Code-style panel under every pane, toggled with ⌃\` (⌃⇧\` opens another tab). Each tab runs your login shell in a real terminal, so colors, `vim`, `top` and `ssh` work. Shells keep running while the panel is hidden. **Explain** (⇧⌘E) sends the selection, or the latest output, to the on-device model and shows what happened and how to fix an error. You can ask follow-up questions about the same output. Nothing leaves your Mac.
+- **Terminal:** a VS Code-style panel with tabs under every pane, running your login shell. **Explain** asks the on-device model what the output means. See [The terminal](#the-terminal).
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.
+
+## The terminal
+
+Press **⌃`** (Control-backtick) or click the terminal button in the toolbar. The panel opens under whatever pane you're on, like the terminal in VS Code.
+
+- **Real shells.** Each tab runs your login shell (`$SHELL`) in a real pseudo-terminal, so colors, `vim`, `top`, `ssh` and your prompt work as they do in Terminal.app. `afm` is on the `PATH`.
+- **Tabs.** ⌃⇧` opens a new tab, and **Terminal > New Terminal in Folder…** starts one in a folder you pick. Shells keep running while the panel is hidden. A tab closes when its shell exits.
+- **Layout.** Drag the line above the panel to resize it, or maximize it to fill the window. The panel's height and text size are remembered.
+- **Explain** (⇧⌘E). Sends the selected text, or the latest output if nothing is selected, to the on-device model. A side panel shows what happened and, for an error, the likely cause and fix. Type a follow-up question about the same output, or copy the answer. Long output is trimmed to the newest part that fits the context. Explain never runs commands. It can be wrong, so read a command before you run it.
+
+| Shortcut | Action |
+| --- | --- |
+| ⌃` | Show or hide the terminal |
+| ⌃⇧` | New terminal tab |
+| ⇧⌘E | Explain the selection or the latest output |
+| ⌃L | Clear the screen (your shell handles it) |
+
+The shell starts with a clean environment, the way Terminal.app starts one, and your shell's startup files set the rest. It sets `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=AFMStudio`. It passes through `SSH_AUTH_SOCK`, `TMPDIR`, `AFM_HOME` and `AFM_ALLOWED_PATHS`, so `ssh`, `git` and `afm` behave as they do elsewhere.
+
+The terminal is the one part of AFM Studio built on a third-party package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) 1.99.0 (MIT), pinned to that exact version in `Package.swift`.
 
 ## The CLI
 
@@ -152,7 +172,7 @@ Read-only, drafts only. The on-device model does the reading and writing; AFM St
 ## OpenAI-compatible API
 
 ```bash
-afm serve --port 11535            # or toggle it in the app's Integrations pane
+afm serve --port 11535            # or toggle it in the app's CLI & API pane
 ```
 
 ```python
@@ -233,6 +253,8 @@ afm serve --port 11535 --token "$(openssl rand -hex 16)"
 - **A Keychain prompt after rebuilding.** Each ad-hoc build is a new program to the Keychain. Choose Always Allow, or save the key again.
 - **Claude doesn't list the afm tools.** Run `afm claude status`, then restart Claude Code or Claude Desktop.
 - **The API server answers with 403 or 415.** Use `127.0.0.1` or `localhost` in the URL, and send `Content-Type: application/json`.
+- **A command works in Terminal.app but not in the app's terminal.** Both start your login shell, but GUI apps don't inherit what you export in one Terminal window. Put `PATH` changes in `~/.zprofile` or `~/.zshrc`.
+- **Explain is grayed out.** It needs the on-device model. Check the status dot at the bottom of the sidebar, or run `afm status`.
 - **`fetch_url` says an address is private.** That's the network guard. Set `AFM_FETCH_ALLOW_PRIVATE=1` if you meant to reach your own network.
 
 ## Uninstall
@@ -244,6 +266,7 @@ afm github auth rm                    # delete the GitHub token from the Keychai
 rm -rf ~/Applications/"AFM Studio.app" ~/.local/bin/afm ~/.local/share/afm-studio
 rm -rf ~/Library/Application\ Support/AFMStudio            # chats, history, recipes and settings
 rm -f ~/Library/Application\ Support/Claude/claude_desktop_config.afm-backup.json
+defaults delete dev.ry-ops.afm-studio                      # terminal height and text size
 ```
 
 ## Project layout
@@ -253,7 +276,7 @@ Sources/AFMKit       engine: generation, schemas, tools, recipes, chunking, chat
 Sources/AFMServer    MCP stdio server and OpenAI-compatible HTTP server
 Sources/AFMGitHub    the GitHub integration (its own module)
 Sources/afm          the CLI
-Sources/AFMStudio    the SwiftUI app
+Sources/AFMStudio    the SwiftUI app, including the terminal panel (TerminalView.swift)
 Tests/SelfTest       self-test (swift run afm-selftest)
 scripts/             app bundle, icon and install scripts
 ```
