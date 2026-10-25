@@ -206,6 +206,7 @@ The server listens only on `127.0.0.1`. Web pages from other sites can't use it:
 - **Host check.** It answers only requests addressed to `127.0.0.1` or `localhost`. That stops DNS rebinding, where a website points its own name at your Mac.
 - **Origin check.** It refuses requests from web pages served by any other site, and it sends no CORS headers.
 - **JSON only.** `POST` bodies must be sent as `Content-Type: application/json`. Browsers can't send that cross-site without asking first, and the server refuses to answer. With `curl`, add `-H 'Content-Type: application/json'`.
+- **Request timeout.** A client has 30 seconds to send its whole request, so stalled connections can't use up the 32 connection slots. Long responses and streams aren't cut off.
 
 Any program running as you on this Mac can still call the server. Add `--token <secret>` to require `Authorization: Bearer <secret>`. Clients then pass the secret as their API key.
 
@@ -233,13 +234,15 @@ afm serve --port 11535 --token "$(openssl rand -hex 16)"
 
 **Files the model and Claude can't read.** The file tools and the MCP `path` argument read only from your home folder and any `AFM_ALLOWED_PATHS` folders. Inside those, these are always refused:
 
-- **Folders:** `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.docker`, `~/.config/gh`, `~/.config/gcloud`, `~/.config/op`, `~/.claude`, `~/.password-store`, `~/Library/Keychains`, `~/Library/Cookies`, `~/Library/Mail`, `~/Library/Messages`, Claude Desktop's settings, and AFM Studio's own data folder.
-- **Files anywhere:** `.env` and `.env.*`, `.netrc`, `.npmrc`, `.pypirc`, `.git-credentials`, `.pgpass`, `.my.cnf`, `.claude.json`, `credentials` files, and SSH private keys.
+- **Folders:** `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.docker`, `~/.config/gh`, `~/.config/gcloud`, `~/.config/op`, `~/.config/hub`, `~/.config/github-copilot`, `~/.claude`, `~/.password-store`, `~/.terraform.d`, `~/Library/Keychains`, `~/Library/Cookies`, `~/Library/Mail`, `~/Library/Messages`, `~/Library/Safari`, the Chrome, Firefox, Brave and Edge profiles, Claude Desktop's settings, and AFM Studio's own data folder. Letter case doesn't matter: `~/.SSH` is refused too.
+- **Files anywhere:** `.env` and `.env.*`, `.netrc`, `.npmrc`, `.pypirc`, `.git-credentials`, `.pgpass`, `.my.cnf`, `.claude.json`, `.vault-token`, `.terraformrc`, `credentials`, `credentials.json` and `credentials.toml` files, and SSH private keys.
 - **Extensions:** `.pem`, `.key`, `.p12`, `.pfx`, `.keychain`, `.keychain-db`, `.kdbx` and `.ovpn`.
 
-**Web fetches stay on the public internet.** `fetch_url` refuses local and private addresses, and it checks every redirect too. That covers `localhost`, your home network, `.local` names and cloud metadata addresses. A page the model reads can't send it to your router or to local services. Set `AFM_FETCH_ALLOW_PRIVATE=1` if you want it to reach your own network.
+**Web fetches stay on the public internet.** `fetch_url` refuses local and private addresses, and it checks every redirect too. That covers `localhost`, your home network, `.local` names and cloud metadata addresses. It also checks the address each connection actually reached, so a DNS server that answers with a public address and then a private one (DNS rebinding) gets nothing back. A page the model reads can't send it to your router or to local services. Set `AFM_FETCH_ALLOW_PRIVATE=1` if you want it to reach your own network.
 
 **Tool combinations.** A chat with both a file tool and Fetch web page on gets a warning. A file or web page with hidden instructions could make the model read a file and send it to a website in a URL. Turn on both only when you trust everything the model will read.
+
+**Local git repos.** The GitHub integration only reads local checkouts. Branch, tag and commit names that look like git options, such as `--output=<file>`, are refused. Git also won't run the external diff, textconv or fsmonitor commands that a repo's own config can set.
 
 **Local data.** Chats, history, recipes and settings are stored unencrypted in `~/Library/Application Support/AFMStudio`. History keeps the first 4,000 characters of each input. Turn history off in Settings, or set `AFM_NO_HISTORY=1`.
 

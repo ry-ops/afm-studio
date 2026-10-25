@@ -1,0 +1,7 @@
+# Opens a pull request when SwiftTerm (pinned in Package.swift) has a new release or a security fix.
+version: 2
+updates:
+  - package-ecosystem: "swift"
+    directory: "/"
+    schedule:
+      interval: "weekly"

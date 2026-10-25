@@ -114,7 +114,12 @@ public struct GHRef: Sendable, Hashable, CustomStringConvertible {
             s = String(s[..<hash])
         }
         let parts = s.split(separator: "/").map(String.init)
-        guard parts.count >= 2, !parts[0].isEmpty, !parts[1].isEmpty else { return nil }
+        // GitHub names use letters, digits, '-', '_' and '.'. Anything else (or "." and "..") could
+        // steer the API path somewhere other than the repo.
+        func valid(_ n: String) -> Bool {
+            !n.isEmpty && n != "." && n != ".." && n.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "-_.".contains($0)) }
+        }
+        guard parts.count >= 2, valid(parts[0]), valid(parts[1]) else { return nil }
         if number == nil, parts.count >= 4, ["issues", "pull", "pulls"].contains(parts[2]) { number = Int(parts[3]) }
         return GHRef(owner: parts[0], repo: parts[1], number: number)
     }

@@ -2,6 +2,10 @@ import Foundation
 import AFMKit
 
 /// Read-only access to a local git checkout.
+///
+/// Refs can come from Claude over MCP, so they're treated as untrusted: a ref may not look like an
+/// option (git log --output=<file> would write a file), and git is told not to run the external
+/// diff, textconv or fsmonitor commands a repo's own config can name.
 public struct LocalRepo: Sendable {
     public let path: String
 
@@ -17,7 +21,7 @@ public struct LocalRepo: Sendable {
     public func git(_ args: [String]) throws -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        p.arguments = ["-C", path] + args
+        p.arguments = ["-c", "core.fsmonitor=false", "-C", path] + args
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
@@ -58,13 +62,29 @@ public struct LocalRepo: Sendable {
 
     public var latestTag: String? { (try? git(["describe", "--tags", "--abbrev=0"]))?.trimmingCharacters(in: .whitespacesAndNewlines) }
 
+    /// Refuses refs and ranges that git would read as an option.
+    public static func checkRef(_ ref: String) throws {
+        let parts = ref.components(separatedBy: "..").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".")) }
+        if ref.isEmpty || parts.contains(where: { $0.hasPrefix("-") }) || ref.contains(where: { $0.isWhitespace || $0.isNewline }) {
+            throw AFMError(code: "bad_ref", message: "\(ref) isn't a valid branch, tag or commit.")
+        }
+    }
+
     public func commits(_ range: String, limit: Int = 200) throws -> [String] {
-        try git(["log", range, "--no-merges", "-n", String(limit), "--format=%s%n%b%x1e"])
+        try Self.checkRef(range)
+        return try git(["log", "--no-merges", "-n", String(limit), "--format=%s%n%b%x1e", "--end-of-options", range])
             .components(separatedBy: "\u{1e}")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
-    public func diffStat(_ range: String) throws -> String { try git(["diff", "--stat", range]) }
-    public func diff(_ range: String) throws -> String { try git(["diff", "--no-color", range]) }
+    public func diffStat(_ range: String) throws -> String {
+        try Self.checkRef(range)
+        return try git(["diff", "--stat", "--no-ext-diff", "--no-textconv", "--end-of-options", range])
+    }
+
+    public func diff(_ range: String) throws -> String {
+        try Self.checkRef(range)
+        return try git(["diff", "--no-color", "--no-ext-diff", "--no-textconv", "--end-of-options", range])
+    }
 }

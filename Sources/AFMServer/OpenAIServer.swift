@@ -89,6 +89,9 @@ public final class OpenAIServer: @unchecked Sendable {
     /// Touched only on `queue`.
     private var openConnections = 0
     public static let maxConnections = 32
+    /// A client gets this long to send its whole request, so slow or stalled clients can't hold
+    /// every connection slot. Responses (including long streams) aren't limited.
+    public static let requestTimeout: TimeInterval = 30
     public static let models = ["apple-foundation-model", "apple-foundation-model-permissive", "apple-foundation-model-tagging"]
 
     public init(port: UInt16 = 11535, token: String? = nil) {
@@ -146,26 +149,35 @@ public final class OpenAIServer: @unchecked Sendable {
             }
         }
         c.start(queue: queue)
-        receive(c, Data())
+        let pending = PendingRequest()
+        queue.asyncAfter(deadline: .now() + Self.requestTimeout) { [weak c] in
+            if !pending.received { c?.cancel() }
+        }
+        receive(c, Data(), pending)
     }
 
-    private func receive(_ c: NWConnection, _ buffer: Data) {
+    /// Touched only on `queue`.
+    private final class PendingRequest: @unchecked Sendable { var received = false }
+
+    private func receive(_ c: NWConnection, _ buffer: Data, _ pending: PendingRequest) {
         c.receive(minimumIncompleteLength: 1, maximumLength: 1 << 16) { [weak self] data, _, done, err in
             guard let self else { return }
             var buf = buffer
             if let data { buf.append(data) }
             switch HTTPRequest.inspect(buf) {
             case .complete(let req):
+                pending.received = true
                 Task { await self.route(req, c) }
                 return
             case .invalid(let status, let message):
+                pending.received = true
                 self.error(c, status, message, code: "invalid_request")
                 return
             case .incomplete:
                 break
             }
             if done || err != nil { c.cancel(); return }
-            self.receive(c, buf)
+            self.receive(c, buf, pending)
         }
     }
 

@@ -93,6 +93,10 @@ await suite("Text utilities") {
     checkThrows(".env files are refused") { _ = try FileAccess.resolve("~/code/app/.env.local") }
     checkThrows("private keys are refused") { _ = try FileAccess.resolve("~/certs/server.pem") }
     checkThrows("Claude Desktop config is refused") { _ = try FileAccess.resolve("~/Library/Application Support/Claude/claude_desktop_config.json") }
+    checkThrows("blocked folders ignore case") { _ = try FileAccess.resolve("~/.SSH/config") }
+    checkThrows("gh CLI token file is refused") { _ = try FileAccess.resolve("~/.Config/gh/hosts.yml") }
+    checkThrows("cargo credentials are refused") { _ = try FileAccess.resolve("~/.cargo/credentials.toml") }
+    checkThrows("browser profiles are refused") { _ = try FileAccess.resolve("~/Library/Application Support/Google/Chrome/Default/Login Data") }
     check((try? FileAccess.resolve("~/Documents/notes.txt")) != nil, "ordinary files still allowed")
     check((try? FileAccess.resolve("~/code/environment.md")) != nil, "names that merely contain env are allowed")
 
@@ -142,6 +146,9 @@ await suite("Network guard") {
     checkThrows("bare hostnames are refused") { try NetGuard.check(URL(string: "http://router/")!) }
     checkThrows("IPv6 loopback is refused") { try NetGuard.check(URL(string: "http://[::1]/")!) }
     checkThrows("file URLs are refused") { try NetGuard.check(URL(string: "file:///etc/passwd")!) }
+    check(NetGuard.bytes(ofAddress: "127.0.0.1") == [127, 0, 0, 1], "parses the connected IPv4 address")
+    check(NetGuard.bytes(ofAddress: "fe80::1%en0").map(NetGuard.isPrivate) == true, "parses a scoped IPv6 address")
+    check(NetGuard.bytes(ofAddress: "93.184.215.14").map(NetGuard.isPrivate) == false, "public connected address passes")
 }
 
 await suite("Servers") {
@@ -238,6 +245,11 @@ await suite("Integrations") {
     check(GHRef.parse("https://github.com/a/b/issues/3")?.description == "a/b#3", "ref: issue URL")
     check(GHRef.parse("git@github.com:a/b.git") == nil || GHRef.parse("github.com/a/b.git")?.slug == "a/b", "ref: .git suffix")
     check(GHRef.parse("nonsense") == nil, "ref: rejects junk")
+    check(GHRef.parse("../user") == nil && GHRef.parse("a/..") == nil && GHRef.parse("a/b?x=1") == nil, "ref: rejects path tricks")
+    checkThrows("git: option-like ref is refused") { try LocalRepo.checkRef("--output=/tmp/x") }
+    checkThrows("git: option-like range end is refused") { try LocalRepo.checkRef("v1.0..--output=/tmp/x") }
+    checkThrows("git: option-like three-dot range is refused") { try LocalRepo.checkRef("main...-p") }
+    check((try? LocalRepo.checkRef("origin/main...HEAD")) != nil && (try? LocalRepo.checkRef("v1.2.0..HEAD")) != nil, "git: normal ranges pass")
     let groups = GitHubWorkflows.group(["feat(ui): add dark mode", "fix: crash on launch", "chore: bump deps", "Update README"])
     check(groups.map(\.0) == ["Features", "Fixes", "Maintenance", "Other"] && groups[0].1 == ["add dark mode"], "conventional commit grouping")
     let patches = GitHubWorkflows.filePatches("diff --git a/x.swift b/x.swift\n+one\ndiff --git a/y.md b/y.md\n+two")

@@ -198,21 +198,26 @@ public enum FileAccess {
     /// Folders under your home folder that hold keys, tokens, cookies or AFM Studio's own data.
     public static let sensitiveDirectories = [
         ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".config/gh", ".config/gcloud", ".config/op",
-        ".claude", ".password-store", "Library/Keychains", "Library/Cookies", "Library/Mail", "Library/Messages",
+        ".claude", ".password-store", ".terraform.d", ".config/hub", ".config/github-copilot",
+        "Library/Keychains", "Library/Cookies", "Library/Mail", "Library/Messages", "Library/Safari",
         "Library/Application Support/Claude", "Library/Application Support/AFMStudio",
+        "Library/Application Support/Google/Chrome", "Library/Application Support/Firefox",
+        "Library/Application Support/BraveSoftware", "Library/Application Support/Microsoft Edge",
     ]
     /// File names that hold credentials wherever they are.
     public static let sensitiveNames: Set<String> = [
-        ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".claude.json", ".pgpass", ".my.cnf", "credentials", "credentials.json",
+        ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".claude.json", ".pgpass", ".my.cnf", ".vault-token", ".terraformrc",
+        "credentials", "credentials.json", "credentials.toml", ".credentials.json",
         "id_rsa", "id_ecdsa", "id_ed25519", "id_dsa",
     ]
     static let sensitiveExtensions: Set<String> = ["pem", "key", "p12", "pfx", "keychain", "keychain-db", "kdbx", "ovpn"]
 
+    /// Compared without case, because macOS volumes usually ignore it: ~/.SSH is ~/.ssh.
     public static func isSensitive(_ url: URL) -> Bool {
-        let p = url.path
+        let p = url.path.lowercased()
         let home = URL(fileURLWithPath: FileManager.default.homeDirectoryForCurrentUser.path).resolvingSymlinksInPath().standardizedFileURL.path
-        var dirs = sensitiveDirectories.map { home + "/" + $0 }
-        dirs.append(URL(fileURLWithPath: AFMPaths.root.path).resolvingSymlinksInPath().standardizedFileURL.path)
+        var dirs = sensitiveDirectories.map { (home + "/" + $0).lowercased() }
+        dirs.append(URL(fileURLWithPath: AFMPaths.root.path).resolvingSymlinksInPath().standardizedFileURL.path.lowercased())
         if dirs.contains(where: { p == $0 || p.hasPrefix($0 + "/") }) { return true }
         let name = url.lastPathComponent.lowercased()
         if sensitiveNames.contains(name) || name.hasPrefix("id_rsa") || name.hasPrefix("id_ed25519") || name.hasPrefix("id_ecdsa") { return true }
@@ -252,6 +257,7 @@ public enum WebText {
         req.setValue("afm-studio/1.0", forHTTPHeaderField: "User-Agent")
         let redirects = NetGuard.RedirectGuard()
         let (data, resp) = try await URLSession.shared.data(for: req, delegate: redirects)
+        if redirects.reachedPrivate { throw NetGuard.blocked(url.host ?? s) }
         if let http = resp as? HTTPURLResponse, (300..<400).contains(http.statusCode) {
             throw AFMError(code: "redirect_blocked", message: "The page redirected to a local or private address, or redirected too many times.")
         }

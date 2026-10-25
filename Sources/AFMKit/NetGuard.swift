@@ -79,14 +79,40 @@ public enum NetGuard {
         return false
     }
 
+    /// Parses a numeric IPv4 or IPv6 address (as URLSession metrics report it) into raw bytes.
+    public static func bytes(ofAddress s: String) -> [UInt8]? {
+        let host = s.split(separator: "%").first.map(String.init) ?? s
+        var v4 = in_addr()
+        if inet_pton(AF_INET, host, &v4) == 1 { return withUnsafeBytes(of: &v4) { Array($0) } }
+        var v6 = in6_addr()
+        if inet_pton(AF_INET6, host, &v6) == 1 { return withUnsafeBytes(of: &v6) { Array($0) } }
+        return nil
+    }
+
     /// Re-checks every redirect, so a public page can't bounce the fetch to a private address.
+    /// Also records the address each connection really used. A DNS server can answer `check` with a
+    /// public address and the fetch a moment later with a private one (DNS rebinding), so the
+    /// response is thrown away when the connection reached a private address.
     final class RedirectGuard: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
         var hops = 0
+        private let lock = NSLock()
+        private var _reachedPrivate = false
+        var reachedPrivate: Bool { lock.lock(); defer { lock.unlock() }; return _reachedPrivate }
+
         func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                         newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
             hops += 1
             guard hops <= 5, let u = request.url, (try? NetGuard.check(u)) != nil else { completionHandler(nil); return }
             completionHandler(request)
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didFinishCollecting metrics: URLSessionTaskMetrics) {
+            guard !NetGuard.allowPrivate else { return }
+            // Through a proxy, the remote address is the proxy's, which may well be local.
+            let hit = metrics.transactionMetrics.contains { t in
+                !t.isProxyConnection && (t.remoteAddress.flatMap(NetGuard.bytes(ofAddress:)).map(NetGuard.isPrivate) ?? false)
+            }
+            if hit { lock.lock(); _reachedPrivate = true; lock.unlock() }
         }
     }
 }
