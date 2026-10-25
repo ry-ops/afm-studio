@@ -449,7 +449,9 @@ func cmdChat(_ a: Args) async {
     requireModel()
     let id = a.session ?? "cli-" + String(UUID().uuidString.prefix(8)).lowercased()
     let engine = ChatEngine.open(id: id, source: "cli")
+    let isNew = !engine.record.messages.contains { $0.role == .user }
     engine.update { r in
+        if isNew, r.integrations == nil { r.integrations = ChatSessionRecord.defaultIntegrations }
         if let s = a.system { r.instructions = s }
         if !a.tools.isEmpty { r.tools = a.tools }
         r.options = a.options
