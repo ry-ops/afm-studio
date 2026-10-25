@@ -40,6 +40,22 @@ struct AFMStudioApp: App {
                 Button("Integrations") { app.pane = .integrationsHub }.keyboardShortcut("i", modifiers: [.command, .shift])
                 Button("GitHub") { app.pane = .github }.keyboardShortcut("g", modifiers: [.command, .shift])
             }
+            CommandMenu("Terminal") {
+                Button(app.terminal.visible ? "Hide Terminal" : "Show Terminal") { app.terminal.toggle() }
+                    .keyboardShortcut("`", modifiers: .control)
+                Button("New Terminal") { app.terminal.newTab() }
+                    .keyboardShortcut("`", modifiers: [.control, .shift])
+                Button("New Terminal in Folder…") { app.terminal.newTabInFolder() }
+                Divider()
+                Button("Explain Output") { app.terminal.explain() }
+                    .keyboardShortcut("e", modifiers: [.command, .shift])
+                    .disabled(app.terminal.current == nil || !app.status.available)
+                Button("Clear") { app.terminal.clear() }
+                    .disabled(app.terminal.current == nil)
+                Divider()
+                Button("Larger Text") { app.terminal.changeFont(by: 1) }
+                Button("Smaller Text") { app.terminal.changeFont(by: -1) }
+            }
         }
 
         MenuBarExtra("AFM Studio", systemImage: "sparkles") {

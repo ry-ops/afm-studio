@@ -1,6 +1,6 @@
 # AFM Studio
 
-**Apple's on-device foundation model, everywhere you work on a Mac.** A native SwiftUI app, a command-line tool (`afm`), an MCP server for Claude, and a local OpenAI-compatible API. All of it is one Swift package with no third-party dependencies.
+**Apple's on-device foundation model, everywhere you work on a Mac.** A native SwiftUI app, a command-line tool (`afm`), an MCP server for Claude, and a local OpenAI-compatible API. All of it is one Swift package. Its one third-party dependency is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT, pinned to an exact version), which powers the built-in terminal.
 
 ![Recipes](docs/images/recipes.png)
 
@@ -10,7 +10,7 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 
 | Surface | What it gives you |
 | --- | --- |
-| **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, adapters, and a menu-bar quick-ask panel. |
+| **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, adapters, an integrated terminal, and a menu-bar quick-ask panel. |
 | **`afm` CLI** | Pipe-friendly prompts, recipes, JSON extraction, resumable chats, token counts and benchmarks. |
 | **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model, plus tools from any integration you turn on. Files are processed locally with `path`, so their contents never enter Claude's context. |
 | **OpenAI-compatible API** (`afm serve`) | `/v1/chat/completions` on `127.0.0.1`, with streaming and `response_format: json_schema`. |
@@ -52,6 +52,7 @@ The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/a
 - **History:** every run from every surface, stored only on this Mac.
 - **Model:** availability, supported languages, and custom `.fmadapter` adapters.
 - **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
+- **Terminal:** a VS Code-style panel under every pane, toggled with ⌃\` (⌃⇧\` opens another tab). Each tab runs your login shell in a real terminal, so colors, `vim`, `top` and `ssh` work. Shells keep running while the panel is hidden. **Explain** (⇧⌘E) sends the selection, or the latest output, to the on-device model and shows what happened and how to fix an error. You can ask follow-up questions about the same output. Nothing leaves your Mac.
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.
 
 ## The CLI
