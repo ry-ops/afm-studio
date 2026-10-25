@@ -120,6 +120,16 @@ await suite("Benchmark math") {
     check(Bench.decodeSpeed(runs) == 130.0 / 3.0, "overall speed weights by tokens, skips untimed runs")
 }
 
+await suite("CLI link") {
+    let home = FileManager.default.homeDirectoryForCurrentUser.path
+    check(ClaudeHook.isInstalledApp(URL(fileURLWithPath: "/Applications/AFM Studio.app")), "/Applications copy relinks afm")
+    check(ClaudeHook.isInstalledApp(URL(fileURLWithPath: home + "/Applications/AFM Studio.app")), "~/Applications copy relinks afm")
+    check(!ClaudeHook.isInstalledApp(URL(fileURLWithPath: "/private/tmp/old/AFM Studio.app")), "a copy in a temp folder doesn't")
+    check(!ClaudeHook.isInstalledApp(URL(fileURLWithPath: home + "/Projects/afm-studio/build/AFM Studio.app")), "a build folder copy doesn't")
+    check(ClaudeHook.isInstalledApp(URL(fileURLWithPath: "/Applications/Tools/AFM Studio.app")), "a subfolder of Applications counts")
+    check(!ClaudeHook.isInstalledApp(URL(fileURLWithPath: "/ApplicationsX/AFM Studio.app")), "a look-alike folder doesn't")
+}
+
 await suite("Updates") {
     check(SemVer("v0.2.0")! > SemVer("0.1.0")!, "newer minor wins")
     check(SemVer("0.10.0")! > SemVer("0.9.9")!, "numbers compare as numbers")

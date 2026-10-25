@@ -20,6 +20,14 @@ public enum ClaudeHook {
 
     public static var stableCLIPath: String { home + "/.local/bin/afm" }
 
+    /// True for an app in /Applications or ~/Applications. Only those copies relink afm and
+    /// re-register Claude on launch, so a test or downloaded copy opened elsewhere can't take them over.
+    public static func isInstalledApp(_ bundle: URL) -> Bool {
+        let p = bundle.resolvingSymlinksInPath().standardizedFileURL.path
+        let roots = ["/Applications", URL(fileURLWithPath: home + "/Applications").resolvingSymlinksInPath().path]
+        return bundle.pathExtension == "app" && roots.contains { p.hasPrefix($0 + "/") }
+    }
+
     public static var desktopConfig: URL {
         URL(fileURLWithPath: home).appendingPathComponent("Library/Application Support/Claude/claude_desktop_config.json")
     }

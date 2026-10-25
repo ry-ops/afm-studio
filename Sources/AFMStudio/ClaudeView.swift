@@ -21,13 +21,15 @@ final class ClaudeState {
         hook = s
     }
 
-    /// Links ~/.local/bin/afm to the bundled CLI and registers it with Claude. Only runs from a built .app,
-    /// so development builds never rewrite your Claude configs.
+    /// Links ~/.local/bin/afm to the bundled CLI and registers it with Claude. On launch this runs only
+    /// for an installed copy (in /Applications or ~/Applications), so a development, test or downloaded
+    /// copy opened from anywhere else never takes over the afm command. `force` (the button) runs from any built app.
     func sync(settings: AFMSettings, force: Bool = false) async {
         guard Bundle.main.bundleURL.pathExtension == "app", let bundled = CLILocator.bundled else {
             if force { hookMessage = "Run the built app (bash scripts/build-app.sh) to hook Claude automatically." }
             return
         }
+        guard force || ClaudeHook.isInstalledApp(Bundle.main.bundleURL) else { return }
         syncing = true
         let code = settings.autoHookClaudeCode || force
         let desktop = settings.autoHookClaudeDesktop || force
