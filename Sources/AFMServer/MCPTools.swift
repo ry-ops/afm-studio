@@ -222,7 +222,10 @@ enum MCPTools {
         var obj: [String: Any] = [
             "available": s.available, "context_size": s.contextSize, "languages": s.languages,
             "content_tagging_available": s.taggingAvailable, "macos": s.osVersion, "server_version": AFMVersion.string,
+            "server_started": ISO8601DateFormatter().string(from: AFMVersion.launched),
         ]
+        // The build this server process runs, which can differ from the installed one until the client reconnects.
+        if !AFMVersion.commit.isEmpty { obj["server_commit"] = AFMVersion.commit }
         if let r = s.reason { obj["reason"] = r }
         if let g = s.guidance { obj["guidance"] = g }
         return JSONRender.pretty(json: JSONValue.string(obj))

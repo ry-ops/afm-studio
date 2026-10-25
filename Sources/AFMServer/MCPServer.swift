@@ -21,7 +21,9 @@ public final class MCPServer: @unchecked Sendable {
     static func log(_ s: String) { FileHandle.standardError.write(Data("[afm-mcp] \(s)\n".utf8)) }
 
     public func run() async {
-        MCPServer.log("ready (afm-studio \(AFMVersion.string))")
+        // Read now, so afm_status reports this process's build even after a newer one is installed.
+        _ = (AFMVersion.commit, AFMVersion.launched)
+        MCPServer.log("ready (afm-studio \(AFMVersion.string)\(AFMVersion.commit.isEmpty ? "" : " \(AFMVersion.commit.prefix(7))"))")
         let lines = AsyncStream<String> { cont in
             Thread.detachNewThread {
                 while let l = readLine(strippingNewline: true) { cont.yield(l) }

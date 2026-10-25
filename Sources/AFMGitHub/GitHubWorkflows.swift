@@ -384,8 +384,11 @@ public enum GitHubWorkflows {
         let readme = (try? await gh.readme(slug)) ?? ""
         let commits = (try? await gh.commits(slug, limit: 15)) ?? []
         let open = (try? await gh.openIssues(slug, limit: 40)) ?? []
+        let release = try? await gh.latestRelease(slug)
         var m = "Repository \(repo.fullName)\(repo.private ? " (private)" : "")\(repo.archived ? " (archived)" : "")\n"
         m += "Description: \(repo.description ?? "none") · Language: \(repo.language ?? "?") · Stars: \(repo.stargazersCount) · Last push: \(repo.pushedAt?.prefix(10) ?? "?")\n"
+        // Without this the model called a "release: x.y" commit the stable release, though it was never published.
+        m += "Latest published release: " + (release.map { "\($0.tagName) (\($0.publishedAt?.prefix(10) ?? "date unknown"))" } ?? "none") + "\n"
         m += "\nRecent commits:\n" + commits.map { "- \($0.commit.author?.date?.prefix(10) ?? "") \($0.subject)" }.joined(separator: "\n")
         let prs = open.filter(\.isPR), issues = open.filter { !$0.isPR }
         m += "\n\nOpen pull requests (\(prs.count)):\n" + prs.prefix(15).map { "- #\($0.number) \($0.title)" }.joined(separator: "\n")
@@ -399,7 +402,7 @@ public enum GitHubWorkflows {
         onProgress?("Reading \(slug)")
         let (_, _, material) = try await repoMaterial(gh, slug, readmeChars: 6000)
         let r = recipe("_gh_brief",
-                       "You brief an engineer on a software project. Be concrete and honest about its state. Use only the material given.",
+                       "You brief an engineer on a software project. Be concrete and honest about its state. Use only the material given. The latest release is the one the material lists as published; a commit that mentions a release is not one.",
                        "Write a project brief in Markdown with these sections: \"## What it is\", \"## Current state\", \"## Recent activity\", \"## Open work\", and \"## Suggested next steps\" (three to five bullets).\n\n{{input}}")
         onProgress?("Writing the brief on device")
         let res = try await RecipeRunner.run(r, input: material, onPartial: onPartial, onProgress: { p in onProgress?(p.stage) })
@@ -429,7 +432,7 @@ public enum GitHubWorkflows {
             "required": ["issues"],
         ]
         let r = recipe("_gh_next",
-                       "You plan practical next steps for a software project. Don't duplicate work that is already in an open issue or pull request. Name a file, folder or path only if it appears in the material.",
+                       "You plan practical next steps for a software project. Don't duplicate work that is already in an open issue or pull request. Name a file, folder or path only if it appears in the material. Suggest documentation work only when an issue asks for it or the material shows the topic is missing; never for something the README already covers.",
                        "Suggest up to five next-step issues for this project\(focus.map { ", focused on: \($0)" } ?? "").\n\n{{input}}",
                        schema: JSONSchemaConverter.jsonText(schema), long: .merge, temperature: 0.4)
         onProgress?("Planning on device")

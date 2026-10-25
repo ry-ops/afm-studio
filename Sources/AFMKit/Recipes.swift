@@ -53,15 +53,33 @@ public struct Recipe: Codable, Sendable, Hashable, Identifiable {
     public var long: LongStrategy?
     public var builtin: Bool?
     public var transform: RecipeTransform?
+    /// The most top-level bullets a prose answer may have, keyed by a parameter value: summarize
+    /// uses `["short": 5, "medium": 10]` for its length. The model ignores such limits when it
+    /// combines the results of a long input, so the runner enforces them.
+    public var maxBullets: [String: Int]?
+    /// The most sentences a prose answer without bullets may have, keyed the same way.
+    public var maxSentences: [String: Int]?
 
     public init(id: String, title: String, summary: String, symbol: String = "wand.and.stars", category: String = "Custom",
                 instructions: String, template: String = "{{input}}", params: [RecipeParam] = [], schema: String? = nil,
                 temperature: Double? = nil, useCase: UseCaseMode? = nil, permissive: Bool? = nil, long: LongStrategy? = nil, builtin: Bool? = nil,
-                transform: RecipeTransform? = nil) {
+                transform: RecipeTransform? = nil, maxBullets: [String: Int]? = nil, maxSentences: [String: Int]? = nil) {
         self.id = id; self.title = title; self.summary = summary; self.symbol = symbol; self.category = category
         self.instructions = instructions; self.template = template; self.params = params; self.schema = schema
         self.temperature = temperature; self.useCase = useCase; self.permissive = permissive; self.long = long; self.builtin = builtin
-        self.transform = transform
+        self.transform = transform; self.maxBullets = maxBullets; self.maxSentences = maxSentences
+    }
+
+    /// The bullet limit that applies with these parameter values, or nil.
+    public func bulletLimit(_ values: [String: String]) -> Int? {
+        guard let maxBullets else { return nil }
+        return values.values.compactMap { maxBullets[$0] }.min()
+    }
+
+    /// The sentence limit that applies with these parameter values, or nil.
+    public func sentenceLimit(_ values: [String: String]) -> Int? {
+        guard let maxSentences else { return nil }
+        return values.values.compactMap { maxSentences[$0] }.min()
     }
 
     /// The answer is JSON. A recipe with a transform uses its schema internally and answers in text.
@@ -193,6 +211,36 @@ public enum RecipeRunner {
         let reserve = opts.maxTokens ?? (schema == nil ? 900 : 700)
         let budget = max(500, model.contextSize - overhead - schemaTokens - reserve - 160)
 
+        let limit = schema == nil ? recipe.bulletLimit(values) : nil
+        let sentenceLimit = schema == nil ? recipe.sentenceLimit(values) : nil
+
+        /// Tidies a prose answer and holds it to the recipe's bullet limit: first by asking the model
+        /// to pick the most important bullets, then, if it still runs over, by keeping the first ones.
+        func finish(_ r: inout GenerationResult, input: String, partial: (@Sendable (String) -> Void)?) async throws {
+            guard schema == nil else { return }
+            r.text = TextCleanup.tidy(r.text, input: input)
+            if TextCleanup.bulletCount(r.text) == 0, let sentenceLimit, TextCleanup.sentenceCount(r.text) > sentenceLimit {
+                let shorten = GenerationRequest(
+                    prompt: "Shorten this to at most \(sentenceLimit) sentences. Keep the most important facts, add nothing, and output only the shortened text.\n\n\(r.text)",
+                    instructions: "You shorten text without changing its facts.", options: opts, config: cfg)
+                if let short = try? await AFM.run(shorten, onPartial: nil), !short.text.isEmpty {
+                    r.text = TextCleanup.tidy(short.text, input: input)
+                }
+                r.text = TextCleanup.firstSentences(r.text, sentenceLimit)
+                partial?(r.text)
+                return
+            }
+            guard let limit, TextCleanup.bulletCount(r.text) > limit else { return }
+            let pick = GenerationRequest(
+                prompt: "Keep only the \(limit) most important of these bullet points, covering the whole list rather than its start. Copy each kept bullet unchanged. Output only those \(limit) bullets.\n\n\(r.text)",
+                instructions: "You choose the most important points from a list. Never add or reword a point.", options: opts, config: cfg)
+            if let picked = try? await AFM.run(pick, onPartial: nil), TextCleanup.bulletCount(picked.text) > 0 {
+                r.text = TextCleanup.tidy(picked.text, input: input)
+            }
+            r.text = TextCleanup.firstBullets(r.text, limit)
+            partial?(r.text)
+        }
+
         func once(_ text: String, partial: (@Sendable (String) -> Void)?) async throws -> GenerationResult {
             var v = values
             v["input"] = text
@@ -208,7 +256,7 @@ public enum RecipeRunner {
         let inputTokens = await Chunker.countTokens(input, model: model)
         if inputTokens <= budget {
             var single = try await once(input, partial: onPartial)
-            if schema == nil { single.text = TextCleanup.tidy(single.text, input: input) }
+            try await finish(&single, input: input, partial: onPartial)
             return single
         }
         guard recipe.strategy != .reject else {
@@ -218,7 +266,7 @@ public enum RecipeRunner {
             var kept = try await tail(input, budget: budget - 40, model: model)
             kept = "(Only the last \(kept.split(separator: "\n").count) lines fit; earlier lines were left out.)\n" + kept
             var r = try await once(kept, partial: onPartial)
-            if schema == nil { r.text = TextCleanup.tidy(r.text, input: kept) }
+            try await finish(&r, input: kept, partial: onPartial)
             r.promptTokens = inputTokens
             return r
         }
@@ -255,7 +303,11 @@ public enum RecipeRunner {
             let note = "The text below is one result per section of a single long document, in order. Combine them into one answer: keep every detail that answers the request, from every section, skip sections that found nothing, and follow the requested length.\n\n"
             final = try await once(note + joined, partial: onPartial)
         }
-        if schema == nil { final.text = TextCleanup.tidy(final.text, input: input) }
+        if recipe.strategy == .concatenate {
+            if schema == nil { final.text = TextCleanup.tidy(final.text, input: input) }
+        } else {
+            try await finish(&final, input: input, partial: onPartial)
+        }
         final.seconds = Date().timeIntervalSince(start)
         final.chunks = chunks.count
         final.promptTokens = inputTokens

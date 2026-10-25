@@ -145,6 +145,18 @@ await suite("Prose cleanup") {
     check(TextCleanup.tidy("  Plain answer.  ") == "Plain answer.", "plain text is trimmed only")
     check(TextCleanup.tidy("Subject: Hello\n\nDear Ryan,\nHi.", input: "Hi Ryan, hi.") == "Dear Ryan,\nHi.", "invented subject line dropped")
     check(TextCleanup.tidy("Subject: Hello\n\nHi.", input: "Subject: Hello\nhi") == "Subject: Hello\n\nHi.", "subject line from the input kept")
+    let list = "Summary:\n- one\n  - detail\n- two\n* three\n1. four\n2) five\n- six\n\nTrailing note."
+    check(TextCleanup.bulletCount(list) == 6, "top-level bullets and numbered items counted, sub-bullets not")
+    check(TextCleanup.firstBullets(list, 2) == "Summary:\n- one\n  - detail\n- two", "first bullets kept with their header and sub-lines")
+    check(TextCleanup.firstBullets(list, 10) == list, "a list within the limit is unchanged")
+    check(TextCleanup.bulletCount("2026 was a year.\n-1 is negative.") == 0, "a year or a minus sign is not a bullet")
+    let summarize = Recipe.builtins.first { $0.id == "summarize" }
+    check(summarize?.bulletLimit(["length": "short", "style": "bullet points"]) == 5, "short summaries hold 5 bullets")
+    check(summarize?.bulletLimit(["length": "detailed"]) == nil, "detailed summaries have no bullet limit")
+    check(summarize?.sentenceLimit(["length": "short"]) == 3, "short paragraph summaries hold 3 sentences")
+    let prose = "AFM runs on device, e.g. on a Mac. It is free. It works offline! Does it need a key? No."
+    check(TextCleanup.sentenceCount(prose) == 5, "sentences counted past an abbreviation")
+    check(TextCleanup.firstSentences(prose, 2) == "AFM runs on device, e.g. on a Mac. It is free.", "first sentences kept whole")
     check(GitHubWorkflows.isProseHighlight("This release adds progress for long messages. It also fixes chat."), "prose highlights kept")
     check(!GitHubWorkflows.isProseHighlight("### Features\n\n- Show progress"), "highlights that copy the notes dropped")
     check(!GitHubWorkflows.isProseHighlight(""), "empty highlights dropped")
@@ -368,6 +380,10 @@ await suite("Servers") {
     let before = cap.lines.count
     await server.handleLine(#"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"afm_chat","arguments":{"session_id":"studio-private","message":"hi"}}}"#)
     check(cap.lines.count == before + 1 && cap.lines[before].contains("chat_not_shared"), "MCP can't continue a chat started in the app")
+    let atStatus = cap.lines.count
+    await server.handleLine(#"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"afm_status","arguments":{}}}"#)
+    check(cap.lines.count == atStatus + 1 && cap.lines[atStatus].contains("server_started"), "afm_status says when the server started")
+    check(AFMVersion.commit.isEmpty || cap.lines[atStatus].contains(AFMVersion.commit), "afm_status names the server's build when it has one")
 }
 
 await suite("Claude wiring") {

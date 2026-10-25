@@ -144,8 +144,8 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 **Tested.** The new build passes 58 of the 63 cases. What's still open:
 
-- **Long summaries** come out shorter, at 271 to 350 words instead of 553, and take about half as long. They still pass the 5-bullet limit, because the final pass over the per-section results doesn't hold it.
-- **Proofread** still misses "Me and him". This is a limit of the model.
+- **Long summaries** come out shorter, at 271 to 350 words instead of 553, and take about half as long. The length limits now hold too, as described under "Summaries and drafts break their own rules" below.
+- **Proofread** missed "Me and him" until the instructions gave that exact case as an example. It now returns "He and I have been".
 - **Regex** still fences its pattern, and gets one or two of three test patterns wrong. It needs a decision: verify patterns on the Mac, or remove the recipe.
 
 ### New recipes: redact, explain an error, draft from notes
@@ -159,6 +159,34 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 **Also.** The framework sometimes fails with an unnamed internal error (`LanguageModelError error -1`) during long runs of back-to-back requests. It arrives as a plain `NSError`, so it showed as "The operation couldn't be completed." Recipes now retry such a call once, and the error reads "The on-device model hit an internal error", with advice to retry.
 
 **Tested.** `afm-selftest` covers the redactor, including card checksums, an international phone number, dates and short numbers left alone, one placeholder per value, and bad model output. It also covers the error mapping. Live cases: three redaction texts, a text with nothing to hide that came back unchanged, three address formats in six runs, all five draft formats (no number in a draft that isn't in the notes), and a Swift error, a Python traceback and a 4,000-line log with the error on its last line.
+
+### Summaries and drafts break their own rules
+
+**Status.** Fixed for the next release.
+
+**What was wrong.** A spin through every MCP tool with the afm-studio Claude Code mod watching turned up:
+
+- A short summary of the README had 17 bullets, and of the roadmap 23. Short allows 5. As a paragraph it ran 342 words, where short allows 3 sentences.
+- Explain an error quoted the whole traceback, and one of its next steps was a database dump command offered as a way to read logs.
+- The repo brief called 0.2.3 the stable release. It was a commit named "release: 0.2.3", and the latest published release was 0.2.2.
+- Next steps proposed documenting the chat GitHub tools, which the README already covers.
+- `afm_status` couldn't say which build the server runs. After an install, a client still talks to the old server process until it reconnects, and nothing could tell.
+
+**What changed.**
+
+- A recipe can set `maxBullets` and `maxSentences`, keyed by a parameter value. Summarize uses 5 and 3 for short, 10 and 6 for medium. When an answer runs over, the model picks the most important bullets, or shortens the paragraph, in one more pass. If it's still over, `TextCleanup.firstBullets` or `firstSentences` cuts it. Sentences are counted with NaturalLanguage, so "e.g." doesn't end one.
+- Explain an error quotes only the line that names the error, and its next steps only inspect or check. It never suggests a command that dumps, deletes, resets or changes data.
+- Proofread's instructions include "Me and him has been" becoming "He and I have been".
+- The repo material lists the latest published release from GitHub's releases API, and the brief is told a commit that mentions a release isn't one.
+- Next steps suggests documentation only when an issue asks for it or the material shows the gap.
+- `afm_status` adds `server_commit`, read from the app's `Info.plist` when the server starts, and `server_started`.
+
+**Tested.** `afm-selftest` covers bullet and sentence counting and cutting, the limits, and the new status fields. Live over MCP: short summaries of the README and the roadmap came back with 5 bullets, the short paragraph with 3 sentences, proofread fixed "Me and him", explain-error quoted only the exception line, and the brief named v0.2.2. A summary that has to be cut takes a few seconds longer.
+
+**Still open.**
+
+- Next steps still drafts speculative issues, such as calling a recent fix incomplete without evidence. They are drafts for a person to judge.
+- Long-file work is slow: summarizing the README or roadmap takes 33 to 60 seconds, a PR description about 45, and tags or keywords on the README about 20.
 
 ## 1. Self-update from GitHub
 

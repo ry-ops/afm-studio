@@ -90,6 +90,7 @@ struct GHSearch<T: Decodable>: Decodable { let totalCount: Int; let items: [T] }
 struct GHTree: Decodable { struct Item: Decodable { let path: String; let type: String }; let tree: [Item] }
 struct GHContent: Decodable { let content: String?; let encoding: String? }
 struct GHTag: Decodable { let name: String }
+public struct GHRelease: Decodable, Sendable { public let tagName: String; public let name: String?; public let publishedAt: String? }
 
 // MARK: - References
 
@@ -236,6 +237,10 @@ public struct GitHubClient: Sendable {
     public func latestTag(_ slug: String) async throws -> String? {
         let tags: [GHTag] = try await get("/repos/\(slug)/tags", ["per_page": "1"])
         return tags.first?.name
+    }
+    /// The latest published release, or nil when the repo has none.
+    public func latestRelease(_ slug: String) async throws -> GHRelease? {
+        try? await get("/repos/\(slug)/releases/latest") as GHRelease
     }
     public func search(_ q: String, limit: Int = 20) async throws -> [GHIssue] {
         let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": try Self.checkedQuery(q), "per_page": String(min(limit, 100)), "sort": "updated"])
