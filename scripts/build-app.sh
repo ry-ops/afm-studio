@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds "AFM Studio.app" (with the afm CLI inside) into ./build.
 #   bash scripts/build-app.sh            build only
-#   bash scripts/build-app.sh --install  also copy the app to ~/Applications
+#   bash scripts/build-app.sh --install  also install it in /Applications and link the afm command
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -55,9 +55,25 @@ codesign --force --sign - "$APP"
 echo "✓ Built $APP ($VERSION)"
 
 if [ "${1:-}" = "--install" ]; then
-  mkdir -p "$HOME/Applications"
-  rm -rf "$HOME/Applications/AFM Studio.app"
-  cp -R "$APP" "$HOME/Applications/"
-  echo "✓ Installed to ~/Applications/AFM Studio.app"
-  echo "  Install the afm command from the app's CLI & API pane, or run: bash scripts/install.sh"
+  DEST="/Applications"
+  [ -w "$DEST" ] || DEST="$HOME/Applications"   # no write access to /Applications: install for this user only
+  mkdir -p "$DEST"
+  osascript -e 'tell application "AFM Studio" to quit' >/dev/null 2>&1 || true
+  rm -rf "$DEST/AFM Studio.app"
+  cp -R "$APP" "$DEST/"
+  echo "✓ Installed to $DEST/AFM Studio.app"
+
+  # An older copy in ~/Applications goes to the Trash, so Spotlight and Launchpad show only one.
+  OLD="$HOME/Applications/AFM Studio.app"
+  if [ "$DEST" != "$HOME/Applications" ] && [ -d "$OLD" ]; then
+    osascript -e "tell application \"Finder\" to delete POSIX file \"$OLD\"" >/dev/null 2>&1 || rm -rf "$OLD"
+    echo "✓ Moved the old copy in ~/Applications to the Trash"
+  fi
+
+  # Point the afm command at the installed app (the app also does this when it opens).
+  BIN_DIR="${AFM_INSTALL_DIR:-$HOME/.local/bin}"
+  mkdir -p "$BIN_DIR"
+  ln -sf "$DEST/AFM Studio.app/Contents/Helpers/afm" "$BIN_DIR/afm"
+  echo "✓ Linked $BIN_DIR/afm"
+  case ":$PATH:" in *":$BIN_DIR:"*) ;; *) echo "  Add $BIN_DIR to your PATH to run afm from anywhere." ;; esac
 fi

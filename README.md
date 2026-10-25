@@ -28,13 +28,18 @@ Run `afm status` to check whether the model is ready.
 ## Install
 
 ```bash
-git clone https://github.com/ry-ops/afm-studio.git
-cd afm-studio
-
-bash scripts/build-app.sh            # builds "build/AFM Studio.app" with the afm CLI inside
-bash scripts/build-app.sh --install  # same, then copies it to ~/Applications
-bash scripts/install.sh              # CLI only: links afm into ~/.local/bin
+git clone https://github.com/ry-ops/afm-studio.git ~/Projects/afm-studio
+bash ~/Projects/afm-studio/scripts/build-app.sh --install
 ```
+
+That builds the app and installs it as `/Applications/AFM Studio.app`, then links the `afm` command into `~/.local/bin`. The scripts work from any folder. If you cloned somewhere else, use that path instead.
+
+```bash
+bash ~/Projects/afm-studio/scripts/build-app.sh   # build only, into ~/Projects/afm-studio/build
+bash ~/Projects/afm-studio/scripts/install.sh     # CLI only: links afm into ~/.local/bin
+```
+
+If you can't write to `/Applications`, `--install` uses `~/Applications` instead. An older copy in `~/Applications` goes to the Trash, and a running copy is quit first.
 
 The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
 
@@ -263,7 +268,7 @@ afm serve --port 11535 --token "$(openssl rand -hex 16)"
 afm claude unhook                     # remove the MCP registration from Claude Code and Claude Desktop
 afm claude key rm                     # delete the Anthropic key from the Keychain
 afm github auth rm                    # delete the GitHub token from the Keychain
-rm -rf ~/Applications/"AFM Studio.app" ~/.local/bin/afm ~/.local/share/afm-studio
+rm -rf /Applications/"AFM Studio.app" ~/Applications/"AFM Studio.app" ~/.local/bin/afm ~/.local/share/afm-studio
 rm -rf ~/Library/Application\ Support/AFMStudio            # chats, history, recipes and settings
 rm -f ~/Library/Application\ Support/Claude/claude_desktop_config.afm-backup.json
 defaults delete dev.ry-ops.afm-studio                      # terminal height and text size
