@@ -185,10 +185,41 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 **Tested.** `afm-selftest` covers bullet and sentence counting and cutting, the limits, and the new status fields. Live over MCP: short summaries of the README and the roadmap came back with 5 bullets, the short paragraph with 3 sentences, proofread fixed "Me and him", explain-error quoted only the exception line, and the brief named v0.2.2. A summary that has to be cut takes a few seconds longer.
 
-**Still open.**
+### Long-file work is slow, and next steps guesses
 
-- Next steps still drafts speculative issues, such as calling a recent fix incomplete without evidence. They are drafts for a person to judge.
-- Long-file work is slow: summarizing the README or roadmap takes 33 to 60 seconds, a PR description about 45, and tags or keywords on the README about 20.
+**Status.** Fixed for the next release.
+
+**What was wrong.** Summarizing the README or the roadmap took 33 to 82 seconds, and a PR description 45 to 51. Next steps drafted issues the material didn't support, such as calling a recent fix incomplete.
+
+**Why.** The on-device model reads fast and writes slowly. Reading 2,000 tokens takes about 3 seconds, and writing 300 takes about 10. Running requests in parallel gained 5%, because the model serves one at a time. So the time went to text that was thrown away:
+
+- Each section of a long input was summarized at full length, often with sub-bullets.
+- The combining pass then wrote a long answer, 19 seconds for the README, and the length limit cut most of it.
+- The PR draft fed each file's patch with its unchanged context lines, asked for a one-sentence note on ten files, and listed every other file. The model wrote a bullet for each of those, inventing what it did.
+- Next steps saw only the README and recent commits, so it had nothing real to plan from.
+
+**What changed.**
+
+- With a length limit, section notes are told they are one part of a longer document and to write one-sentence bullets with no sub-bullets. They are capped at 300 tokens, and a last line cut off at the cap is dropped.
+- When the notes already have more bullets than the limit, the most important are picked straight from them, without a combining pass.
+- The bullet limit applies only to bulleted styles and the sentence limit only to prose. A paragraph summary had come back as bullets.
+- PR file notes see only changed lines and hunk headers, up to 4,000 characters. They cover the six largest files in at most 25 words each. Changes get one bullet per note and none for other files, and the title is written from the commit subjects.
+- Next steps reads the repo's `ROADMAP.md`, minus sections marked fixed or shipped (`GitHubWorkflows.openRoadmap`). Each issue must name the item it comes from, come from a different item, and put bugs ahead of polish.
+- `AFM_TRACE=1` logs each model call's time and sizes to stderr.
+
+**Tested.** `afm-selftest` covers dropping a cut-off line and the roadmap filter. Timed with `AFM_TRACE=1` on this branch:
+
+| Task | Before | After |
+| --- | --- | --- |
+| Short summary of the README | 47 s | 30 s |
+| Short paragraph summary of the README | 46 s | 30 s |
+| Short summary of the roadmap | 59 s | 30 s |
+| Medium summary of the roadmap | 82 s | 31 s |
+| PR description of this branch | 51 s | 22 s |
+
+Next steps, run twice, named a roadmap item in every issue both times, and included the Help menu bug.
+
+**Still open.** Next steps sometimes drafts two issues about the same item, or a weak one such as a version check. Summaries of the roadmap still sometimes call planned work done.
 
 ## 1. Self-update from GitHub
 

@@ -74,6 +74,9 @@ public struct GenerationResult: Codable, Sendable, Equatable, Hashable {
 public enum AFM {
     public static var status: ModelStatus { .current() }
 
+    /// `AFM_TRACE=1` logs each model call's time and sizes to stderr, to see where a slow run spends it.
+    static let isTracing = ProcessInfo.processInfo.environment["AFM_TRACE"] == "1"
+
     public static func run(_ req: GenerationRequest,
                            onPartial: (@Sendable (String) -> Void)? = nil,
                            onTool: (@Sendable (String) -> Void)? = nil) async throws -> GenerationResult {
@@ -131,6 +134,10 @@ public enum AFM {
             }
 
             let seconds = Date().timeIntervalSince(start)
+            if AFM.isTracing {
+                let head = req.prompt.prefix(60).replacingOccurrences(of: "\n", with: " ")
+                FileHandle.standardError.write(Data(String(format: "[afm-trace] %.1fs  in %d chars  out %d chars  %@\n", seconds, req.prompt.count, text.count, head).utf8))
+            }
             var pt: Int?
             var ot: Int?
             if req.measureTokens {

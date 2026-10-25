@@ -317,6 +317,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 | `AFM_ALLOWED_PATHS` | Extra folders the file tools and MCP `path` may read, separated by colons. |
 | `AFM_FETCH_ALLOW_PRIVATE` | Set to `1` to let `fetch_url` reach local and private addresses. |
 | `AFM_NO_HISTORY` | Set to `1` to skip writing history. |
+| `AFM_TRACE` | Set to `1` to log each model call's time and input and output sizes to stderr. |
 | `AFM_DEBUG` | Set to `1` to print full underlying errors to stderr. |
 | `AFM_INSTALL_DIR` | Where `scripts/install.sh` links `afm`. The default is `~/.local/bin`. |
 | `ANTHROPIC_API_KEY` | Fallback Anthropic key when the Keychain has none. |

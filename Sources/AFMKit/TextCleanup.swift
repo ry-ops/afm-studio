@@ -84,4 +84,14 @@ public enum TextCleanup {
     public static func firstSentences(_ text: String, _ limit: Int) -> String {
         sentences(text).prefix(limit).joined().trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// `text` without a last line that stops mid-sentence, as a reply cut off at its token limit does.
+    /// A lone line is kept: a cut-off note beats none.
+    public static func droppingUnfinishedLine(_ text: String) -> String {
+        var lines = text.trimmingCharacters(in: .whitespacesAndNewlines).components(separatedBy: "\n")
+        guard lines.count > 1, let last = lines.last?.trimmingCharacters(in: .whitespaces), let end = last.last else { return text }
+        if ".!?)]`*\"'’”:".contains(end) { return text }
+        lines.removeLast()
+        return lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }

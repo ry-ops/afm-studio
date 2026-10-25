@@ -152,8 +152,16 @@ await suite("Prose cleanup") {
     check(TextCleanup.bulletCount("2026 was a year.\n-1 is negative.") == 0, "a year or a minus sign is not a bullet")
     let summarize = Recipe.builtins.first { $0.id == "summarize" }
     check(summarize?.bulletLimit(["length": "short", "style": "bullet points"]) == 5, "short summaries hold 5 bullets")
-    check(summarize?.bulletLimit(["length": "detailed"]) == nil, "detailed summaries have no bullet limit")
-    check(summarize?.sentenceLimit(["length": "short"]) == 3, "short paragraph summaries hold 3 sentences")
+    check(summarize?.bulletLimit(["length": "detailed", "style": "bullet points"]) == nil, "detailed summaries have no bullet limit")
+    check(summarize?.bulletLimit(["length": "short", "style": "a paragraph"]) == nil, "a paragraph has no bullet limit")
+    check(summarize?.sentenceLimit(["length": "short", "style": "a paragraph"]) == 3, "short paragraph summaries hold 3 sentences")
+    check(summarize?.sentenceLimit(["length": "short", "style": "bullet points"]) == nil, "bullets have no sentence limit")
+    check(TextCleanup.droppingUnfinishedLine("- One.\n- Two is cut o") == "- One.", "a line cut off at the token limit is dropped")
+    check(TextCleanup.droppingUnfinishedLine("- One.\n- Two.") == "- One.\n- Two.", "finished lines are kept")
+    check(TextCleanup.droppingUnfinishedLine("Only a cut-off lin") == "Only a cut-off lin", "a lone line is kept")
+    let roadmap = "# Roadmap\n\n### Old bug\n\n**Status.** Fixed in 0.2.3.\n\nDone.\n\n### Help menu\n\n**Status.** Planned.\n\nTo do.\n\n## 1. Updates\n\n**Status.** The first part shipped. Still to do: rollback.\n"
+    let open = GitHubWorkflows.openRoadmap(roadmap)
+    check(!open.contains("Old bug") && open.contains("Help menu") && open.contains("rollback"), "the roadmap keeps open work and drops finished work")
     let prose = "AFM runs on device, e.g. on a Mac. It is free. It works offline! Does it need a key? No."
     check(TextCleanup.sentenceCount(prose) == 5, "sentences counted past an abbreviation")
     check(TextCleanup.firstSentences(prose, 2) == "AFM runs on device, e.g. on a Mac. It is free.", "first sentences kept whole")
