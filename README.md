@@ -23,7 +23,27 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 
 - A Mac with Apple silicon, running macOS 27.1 or later
 - Apple Intelligence turned on in System Settings
-- The Xcode Command Line Tools with the macOS 27 SDK. The full Xcode app is optional.
+- Command Line Tools for Xcode 27.0 or later, which include the macOS 27 SDK and Swift 6.2 or later
+- Git, which comes with the Command Line Tools
+- A network connection for the first build, which downloads [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) through Swift Package Manager
+
+You don't need the Xcode app. The Command Line Tools alone build, install and test everything.
+
+Check which SDK you have:
+
+```bash
+xcrun --show-sdk-version   # needs 27.0 or later
+```
+
+If it prints 26.x or an error, install or update the Command Line Tools:
+
+```bash
+xcode-select --install                                                 # first install
+softwareupdate --list                                                  # find the current label
+sudo softwareupdate -i "Command Line Tools for Xcode 27.0-27.0"        # update
+```
+
+With an older SDK, the build fails with errors such as `cannot find 'LanguageModelError' in scope`.
 
 Run `afm status` to check whether the model is ready.
 
