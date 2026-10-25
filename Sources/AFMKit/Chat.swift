@@ -204,7 +204,8 @@ public final class ChatEngine: @unchecked Sendable {
     public func send(_ text: String,
                      onPartial: (@Sendable (String) -> Void)? = nil,
                      onTool: (@Sendable (String) -> Void)? = nil,
-                     onNotice: (@Sendable (String) -> Void)? = nil) async throws -> ChatMessage {
+                     onNotice: (@Sendable (String) -> Void)? = nil,
+                     onProgress: (@Sendable (LongReadProgress) -> Void)? = nil) async throws -> ChatMessage {
         if record.messages.filter({ $0.role == .user }).isEmpty && (record.title == "New chat" || record.title == record.id) {
             record.title = String(text.prefix(48)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -220,10 +221,13 @@ public final class ChatEngine: @unchecked Sendable {
 
         // A message too long for the context is read in parts first, and the model answers from notes.
         var prompt = text
+        var longRead: (parts: Int, started: Date)?
         let room = await promptRoom()
         if promptTokens > room {
             do {
-                prompt = try await condense(text, tokens: promptTokens, room: room, onNotice: onNotice)
+                let r = try await condense(text, tokens: promptTokens, room: room, onNotice: onNotice, onProgress: onProgress)
+                prompt = r.prompt
+                longRead = (r.parts, r.started)
             } catch {
                 if let last = record.messages.last, last.role == .user, last.text == text { record.messages.removeLast(); save() }
                 throw error is CancellationError ? error : await AFMError.resolve(error)
@@ -260,6 +264,11 @@ public final class ChatEngine: @unchecked Sendable {
                 let toks = await AFM.tokenCount(out, config: record.config)
                 let msg = ChatMessage(role: .assistant, text: out, seconds: secs, tokens: toks, tools: Array(active.calls.dropFirst(callsBefore)))
                 record.messages.append(msg)
+                if let longRead {
+                    let line = LongMessage.summary(tokens: promptTokens, parts: longRead.parts, seconds: Date().timeIntervalSince(longRead.started))
+                    record.messages.append(ChatMessage(role: .notice, text: line))
+                    onNotice?(line)
+                }
                 save()
                 History.append(HistoryEntry(source: record.source, kind: "chat", title: record.title, input: text, output: out, seconds: secs, outputTokens: toks))
                 return msg
@@ -311,32 +320,51 @@ public final class ChatEngine: @unchecked Sendable {
 
     /// Reads a message that's too long for the context in parts, takes notes on each with the person's request
     /// in mind, and returns a prompt built from those notes. This is what Recipes do for long documents.
-    func condense(_ text: String, tokens: Int, room: Int, onNotice: (@Sendable (String) -> Void)?) async throws -> String {
+    func condense(_ text: String, tokens: Int, room: Int, onNotice: (@Sendable (String) -> Void)?,
+                  onProgress: (@Sendable (LongReadProgress) -> Void)? = nil) async throws -> (prompt: String, parts: Int, started: Date) {
+        let started = Date()
         var cfg = record.config
         cfg.guardrails = .permissive
         let model = cfg.makeModel()
         let (head, tail) = LongMessage.ends(text)
         let chunks = await Chunker.split(text, maxTokens: LongMessage.chunkTokens, model: model)
-        onNotice?("This message is about \(tokens.formatted()) tokens, more than the model can read at once. Reading it in \(chunks.count) parts.")
+        let n = chunks.count
+        // Text notices are for the CLI. A caller with a progress display gets structured reports instead.
+        let say: (String) -> Void = { m in if onProgress == nil { onNotice?(m) } }
+        func report(_ stage: LongReadProgress.Stage, done: Int, remaining: TimeInterval) {
+            onProgress?(LongReadProgress(tokens: tokens, parts: n, done: done, stage: stage, started: started, remaining: remaining))
+        }
+
+        let first = LongMessage.remaining(parts: n, done: 0, measuredPerPart: nil, includeRequest: true)
+        say("This message is about \(tokens.formatted()) tokens, more than the model can read at once. Reading it in \(n) parts, \(LongMessage.roughly(first)).")
+        report(.request, done: 0, remaining: first)
         let request = try await AFM.generate(LongMessage.requestPrompt(head: head, tail: tail), instructions: LongMessage.notesInstructions,
                                              options: GenOptions(temperature: 0.1, maxTokens: 80), config: cfg)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+
         var notes: [String] = []
+        let readingStarted = Date()
         for (i, c) in chunks.enumerated() {
             try Task.checkCancellation()
-            onNotice?("Reading part \(i + 1) of \(chunks.count)…")
-            notes.append(try await AFM.generate(LongMessage.notesPrompt(part: c, index: i, count: chunks.count, request: request),
+            let perPart = i == 0 ? nil : Date().timeIntervalSince(readingStarted) / Double(i)
+            say("Reading part \(i + 1) of \(n)…")
+            report(.reading, done: i, remaining: LongMessage.remaining(parts: n, done: i, measuredPerPart: perPart))
+            notes.append(try await AFM.generate(LongMessage.notesPrompt(part: c, index: i, count: n, request: request),
                                                 instructions: LongMessage.notesInstructions,
                                                 options: GenOptions(temperature: 0.2, maxTokens: LongMessage.notesTokens), config: cfg))
         }
+        let perPart = Date().timeIntervalSince(readingStarted) / Double(max(n, 1))
+
         var joined = LongMessage.join(notes)
         let limit = room - Chunker.estimate(request) - 150
         var depth = 0
         while await Chunker.countTokens(joined, model: model) > limit, depth < 3 {
             try Task.checkCancellation()
-            onNotice?("Combining notes…")
+            let pieces = await Chunker.split(joined, maxTokens: LongMessage.chunkTokens, model: model)
+            say("Combining notes…")
+            report(.combining, done: n, remaining: Double(pieces.count) * perPart + LongMessage.answerSeconds)
             var next: [String] = []
-            for p in await Chunker.split(joined, maxTokens: LongMessage.chunkTokens, model: model) {
+            for p in pieces {
                 next.append(try await AFM.generate(LongMessage.combinePrompt(p, request: request),
                                                    instructions: LongMessage.notesInstructions,
                                                    options: GenOptions(temperature: 0.2, maxTokens: LongMessage.notesTokens), config: cfg))
@@ -344,8 +372,9 @@ public final class ChatEngine: @unchecked Sendable {
             joined = LongMessage.join(next)
             depth += 1
         }
-        onNotice?("Read all \(chunks.count) parts. Answering from the notes.")
-        return LongMessage.finalPrompt(request: request, notes: joined)
+        say("Read all \(n) parts. Answering from the notes.")
+        report(.answering, done: n, remaining: LongMessage.answerSeconds)
+        return (LongMessage.finalPrompt(request: request, notes: joined), n, started)
     }
 
     /// Summarises older turns into the instructions and keeps only the newest user message live.
