@@ -16,7 +16,7 @@ let package = Package(
     ],
     dependencies: [
         // The in-app terminal. MIT, pinned to an exact release.
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm", exact: "1.99.0"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm", exact: "1.99.1"),
     ],
     targets: [
         .target(name: "AFMKit", swiftSettings: v5),
