@@ -82,6 +82,12 @@ await suite("Text utilities") {
 
     let merged = JSONMerge.merge([#"{"people":["Ann"],"summary":""}"#, #"{"people":["Ann","Bo"],"summary":"Hi"}"#])
     check(merged.contains("Bo") && merged.components(separatedBy: "Ann").count == 2 && merged.contains("Hi"), "JSON merge")
+    let capped = JSONMerge.merge([#"{"tags":["a","b","c"]}"#, #"{"tags":["d","e","f"]}"#],
+                                 schema: #"{"type":"object","properties":{"tags":{"type":"array","maxItems":4,"items":{"type":"string"}}}}"#)
+    check(capped.contains("\"d\"") && !capped.contains("\"e\""), "merged arrays keep the schema's maxItems")
+    let nested = JSONMerge.merge([#"{"q":[{"t":["x","y"]}]}"#],
+                                 schema: #"{"type":"object","properties":{"q":{"type":"array","items":{"type":"object","properties":{"t":{"type":"array","maxItems":1}}}}}}"#)
+    check(nested.contains("x") && !nested.contains("y"), "maxItems applies inside array items")
 
     check(Recipe.render("{{labels}} / {{labels_json}}", ["labels": "a, b ,c"]) == #"a, b ,c / ["a","b","c"]"#, "template rendering")
     check(WebText.strip("<html><head><title>x</title></head><body><script>bad()</script><p>Hello &amp; welcome</p></body></html>") == "Hello & welcome", "HTML stripping")
@@ -109,6 +115,39 @@ await suite("JSON fences") {
     check(JSONRender.unfenced("Here you go:\n```\n[1, 2]\n```\nDone.") == "[1, 2]", "untagged fence with prose")
     check(JSONRender.unfenced("  {\"b\": true} ") == "{\"b\": true}", "no fence is trimmed only")
     check(JSONRender.unfenced("```json\n{\"c\": 3}") == "{\"c\": 3}", "unclosed fence")
+}
+
+await suite("Redaction") {
+    let text = "Dana Ortiz (dana.ortiz@riverton.gov, 608-555-0142) met Lee Park at 12 Elm Street. Ortiz paid with 4111 1111 1111 1111. SSN 123-45-6789. Call +44 20 7946 0958. Meeting on 2026-10-25, order 1234567."
+    let r = Redactor.redact(text, people: ["Dana Ortiz", "Lee Park", "Nobody Here"], addresses: ["12 Elm Street"])
+    check(r.text.hasPrefix("[Person 1] ([Email 1], [Phone 1]) met [Person 2] at [Address 1]."), "names, email, phone and address replaced")
+    check(r.text.contains("[Person 1] paid"), "a last name alone gets the full name's placeholder")
+    check(r.text.contains("[Card 1]") && r.text.contains("[ID 1]") && r.text.contains("[Phone 2]"), "card, SSN and international phone replaced")
+    check(r.text.contains("2026-10-25") && r.text.contains("order 1234567"), "dates and short numbers kept")
+    check(r.counts["Person"] == 2, "a name not in the text is ignored")
+    check(!Redactor.redact("Card 4111 1111 1111 1112", people: [], addresses: []).text.contains("[Card"), "a number failing the card checksum is kept")
+    check(Redactor.redact("Same: a@b.co and A@B.CO", people: [], addresses: []).text == "Same: [Email 1] and [Email 1]", "one value keeps one placeholder")
+    check(Redactor.redact("Hi Sam", found: "not json").text == "Hi Sam", "bad model output hides nothing and changes nothing")
+    let internalError = NSError(domain: "FoundationModels.LanguageModelError", code: -1)
+    check(AFMError.isTransientModelError(internalError) && AFMError.from(internalError).code == "model_internal", "the model's unnamed internal error gets a message")
+    check(!AFMError.isTransientModelError(NSError(domain: NSCocoaErrorDomain, code: -1)), "other errors aren't treated as transient")
+    let recipe = Recipe.builtins.first { $0.id == "redact" }
+    check(recipe?.isStructured == false && recipe?.schema != nil, "redact answers in text though it uses a schema")
+}
+
+await suite("Prose cleanup") {
+    check(TextCleanup.tidy("\"\"\"\nThey're here.\n\"\"\"") == "They're here.", "recipe quote delimiters removed")
+    check(TextCleanup.tidy("```markdown\n# Title\n- a\n```") == "# Title\n- a", "markdown fence around the answer removed")
+    check(TextCleanup.tidy("```md\n## Summary\nx\n```") == "## Summary\nx", "md fence removed")
+    check(TextCleanup.tidy("```\n^v?\\d+$\n```\nMatches a version.") == "```\n^v?\\d+$\n```\nMatches a version.", "code fence with prose kept")
+    check(TextCleanup.tidy("```swift\nlet a = 1\n```") == "```swift\nlet a = 1\n```", "code fence kept")
+    check(TextCleanup.tidy("```markdown\nA\n```\nand\n```markdown\nB\n```") .hasPrefix("```markdown\nA"), "two separate fences kept")
+    check(TextCleanup.tidy("  Plain answer.  ") == "Plain answer.", "plain text is trimmed only")
+    check(TextCleanup.tidy("Subject: Hello\n\nDear Ryan,\nHi.", input: "Hi Ryan, hi.") == "Dear Ryan,\nHi.", "invented subject line dropped")
+    check(TextCleanup.tidy("Subject: Hello\n\nHi.", input: "Subject: Hello\nhi") == "Subject: Hello\n\nHi.", "subject line from the input kept")
+    check(GitHubWorkflows.isProseHighlight("This release adds progress for long messages. It also fixes chat."), "prose highlights kept")
+    check(!GitHubWorkflows.isProseHighlight("### Features\n\n- Show progress"), "highlights that copy the notes dropped")
+    check(!GitHubWorkflows.isProseHighlight(""), "empty highlights dropped")
 }
 
 await suite("Benchmark math") {

@@ -51,11 +51,35 @@ public enum Chunker {
 /// Merges structured outputs from several chunks: arrays are concatenated (deduplicated),
 /// nested objects merged, and scalars keep the first non-empty value.
 public enum JSONMerge {
-    public static func merge(_ jsons: [String]) -> String {
+    /// Merges the JSON each chunk produced. With `schema` (JSON Schema text), arrays are then cut
+    /// to their `maxItems`: each chunk keeps its own limit, so the union can exceed it.
+    public static func merge(_ jsons: [String], schema: String? = nil) -> String {
         let contents = jsons.compactMap { try? GeneratedContent(json: $0) }
         guard var acc = contents.first else { return jsons.first ?? "{}" }
         for c in contents.dropFirst() { acc = merge(acc, c) }
+        if let schema, let d = schema.data(using: .utf8),
+           let obj = try? JSONSerialization.jsonObject(with: d) as? [String: Any] {
+            acc = limited(acc, obj)
+        }
         return JSONRender.pretty(acc)
+    }
+
+    /// `content` with every array no longer than its schema's `maxItems`.
+    static func limited(_ content: GeneratedContent, _ schema: [String: Any]) -> GeneratedContent {
+        switch content.kind {
+        case .structure(let props, let keys):
+            let sub = (schema["properties"] as? [String: Any]) ?? [:]
+            var out = props
+            for (k, v) in props { if let s = sub[k] as? [String: Any] { out[k] = limited(v, s) } }
+            return GeneratedContent(kind: .structure(properties: out, orderedKeys: keys))
+        case .array(let xs):
+            var items = xs
+            if let max = (schema["maxItems"] as? NSNumber)?.intValue, items.count > max { items = Array(items.prefix(max)) }
+            if let item = schema["items"] as? [String: Any] { items = items.map { limited($0, item) } }
+            return GeneratedContent(kind: .array(items))
+        default:
+            return content
+        }
     }
 
     static func merge(_ a: GeneratedContent, _ b: GeneratedContent) -> GeneratedContent {

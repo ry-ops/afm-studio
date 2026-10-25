@@ -12,7 +12,7 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 
 | Surface | What it gives you |
 | --- | --- |
-| **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, an integrated terminal, and a menu-bar quick-ask panel. |
+| **AFM Studio app** | Chat with tools, 24 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, an integrated terminal, and a menu-bar quick-ask panel. |
 | **`afm` CLI** | Pipe-friendly prompts, recipes, JSON extraction, resumable chats, token counts and benchmarks. |
 | **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model, plus tools from any integration you turn on. Files are processed locally with `path`, so their contents never enter Claude's context. |
 | **OpenAI-compatible API** (`afm serve`) | `/v1/chat/completions` on `127.0.0.1`, with streaming and `response_format: json_schema`. |
@@ -101,7 +101,7 @@ In 2026 Apple announced its third generation of foundation models, AFM 3, alongs
 ![Structured output](docs/images/structured.png)
 
 - **Chat:** streaming replies with tool calls shown inline. The model warms up as soon as you start typing, so the first token arrives sooner. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically. A message too long for the context, such as a pasted transcript, is read in parts: the model works out what you're asking, takes notes on each part, and answers from the notes. You see progress as it reads, and follow-up questions work from the same notes. Expect about a minute and a half for 10,000 tokens.
-- **Recipes:** summarize, key points, ask-the-document, rewrite, proofread, translate, sentiment, classify, entities, action items, meeting notes, tags, quiz, commit messages and more. Inputs longer than the context are split on paragraph and sentence boundaries, run piece by piece, and combined. You can write your own recipes in the app or as JSON files.
+- **Recipes:** summarize, key points, ask-the-document, rewrite, proofread, translate, draft from notes, redact, sentiment, classify, entities, action items, meeting notes, tags, quiz, explain an error, commit messages and more. Redact hides names, addresses, emails, phone numbers and ID numbers behind placeholders such as `[Person 1]`. The model only finds them, and AFM Studio makes the replacements, so nothing else in the text changes. Explain an error reads a log from the end, where the error usually is. Inputs longer than the context are split on paragraph and sentence boundaries, run piece by piece, and combined. You can write your own recipes in the app or as JSON files.
 - **Structured output:** build a schema with fields or paste JSON Schema, then watch valid JSON stream in. Apple's constrained decoding guarantees the result matches the schema. One click exports the schema as Swift `@Generable` code.
 - **Batch:** drop files or folders, pick a recipe, then export the results as JSON Lines, CSV or Markdown.
 - **Compare:** run one prompt with several sampling settings at once.
@@ -329,6 +329,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 - **Apple Intelligence is off.** Turn it on in System Settings > Apple Intelligence & Siri. Then run `afm status`.
 - **The model is still preparing.** It downloads after Apple Intelligence is first turned on. Wait a few minutes and try again.
 - **A harmless prompt is blocked.** Apple's guardrails sometimes misfire. Try `--permissive` when you're transforming your own text.
+- **"The on-device model hit an internal error."** The framework sometimes fails this way during long runs of back-to-back requests. Recipes retry once on their own. If it still fails, wait a moment and run it again.
 - **The input is larger than the context window.** The model has 4,096 tokens in total. Use a recipe, which chunks long input, or check the size with `afm tokens`.
 - **A Keychain prompt after rebuilding.** Each ad-hoc build is a new program to the Keychain. Run `scripts/make-signing-identity.sh` once, rebuild, and choose Always Allow. See [Keep Keychain approvals across rebuilds](#keep-keychain-approvals-across-rebuilds).
 - **Claude doesn't list the afm tools.** Run `afm claude status`, then restart Claude Code or Claude Desktop.

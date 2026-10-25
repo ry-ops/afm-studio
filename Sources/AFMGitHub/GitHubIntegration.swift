@@ -90,7 +90,9 @@ public struct GitHubIntegration: AFMIntegration {
         return r
     }
 
-    static func meta(_ r: GenerationResult) -> [String: Any] { ["seconds": (r.seconds * 10).rounded() / 10, "chunks": r.chunks] }
+    /// The structured reply for a tool whose answer is prose. MCP clients that read
+    /// `structuredContent` show it in place of the text block, so the text goes in it too.
+    static func meta(_ r: GenerationResult) -> [String: Any] { ["text": r.text, "seconds": (r.seconds * 10).rounded() / 10, "chunks": r.chunks] }
 
     public var mcpTools: [IntegrationTool] {
         [

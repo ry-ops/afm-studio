@@ -73,7 +73,7 @@ enum MCPTools {
                     "reset": ["type": "boolean", "description": "Clear the conversation first."],
                 ]), required: ["message"]),
             def("afm_recipes", "List recipes", "List every recipe (built-in and user-made) with its parameters. Run one with afm_run_recipe."),
-            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, key-points) on text or a local file.",
+            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, explain-error, draft, key-points) on text or a local file. `redact` with `path` returns the file with names, addresses, emails, phone numbers and ID numbers replaced by placeholders, so you can read it without seeing them.",
                 ["recipe": ["type": "string"], "params": ["type": "object", "description": "Recipe parameters as string values, e.g. {\"tone\": \"friendly\"}.", "additionalProperties": ["type": "string"]]],
                 required: ["recipe"], withText: true),
         ]

@@ -156,7 +156,7 @@ public enum GitHubWorkflows {
             "x-order": ["type", "priority", "summary", "suggested_labels", "needs_more_info", "missing_info", "reason"],
         ]
         let r = recipe("_gh_triage",
-                       "You triage GitHub issues and pull requests for a maintainer. Judge priority by user impact. Only suggest labels from the allowed list.",
+                       "You triage GitHub issues and pull requests for a maintainer. Judge priority by user impact. Only suggest labels from the allowed list. Type is what the item changes or asks for: new or improved behavior is a feature, broken behavior is a bug. A title that starts with feat:, fix:, docs: or chore: states its type. Never describe user feelings the text doesn't state.",
                        "Triage this item.\(labels.isEmpty ? "" : " Allowed labels: \(labels.joined(separator: ", ")).")\n\n{{input}}",
                        schema: JSONSchemaConverter.jsonText(schema), long: .merge, temperature: 0.1)
         onProgress?("Triaging on device")
@@ -209,7 +209,7 @@ public enum GitHubWorkflows {
 
     static let prRecipe = recipe("_gh_pr",
         "You write clear, honest pull request descriptions for reviewers. Use only the material given. Never invent tests or results.",
-        "Write a pull request description in Markdown with three sections: \"## Summary\" (two or three sentences), \"## Changes\" (bullet points), and \"## Testing\" (how to verify; write \"Not stated\" if the material doesn't say).\n\n{{input}}")
+        "Write a pull request description in Markdown with three sections: \"## Summary\" (two or three sentences), \"## Changes\" (bullet points), and \"## Testing\" (how to verify; if the material doesn't say, write only \"Not stated\").\n\n{{input}}")
 
     static func titleFor(_ commits: [String], body: String) async -> String {
         if commits.count == 1, let s = commits.first?.split(separator: "\n").first { return String(s) }
@@ -358,11 +358,23 @@ public enum GitHubWorkflows {
             highlights = try await AFM.generate("Write two sentences highlighting the most important changes in these release notes. Restate only what the notes say; add nothing.\n\n" + clip(body, 6000),
                                                 instructions: "You write crisp release highlights. Never mention anything that isn't in the notes.",
                                                 options: GenOptions(temperature: 0.2, maxTokens: 160), config: ModelConfig(guardrails: .permissive))
+            if !isProseHighlight(highlights) { highlights = "" }
         }
         let header = "## Release notes\(fromRef.map { " (\($0) → \(to))" } ?? "")\n" + (highlights.isEmpty ? "" : "\n\(highlights.trimmingCharacters(in: .whitespacesAndNewlines))\n")
         let res = GenerationResult(text: header + body, seconds: Date().timeIntervalSince(start))
         log(source, "github.release-notes", slug ?? local?.path ?? "", subjects.joined(separator: "\n"), res)
         return res
+    }
+
+    /// Asked for two sentences, the model sometimes copies the notes (headings and bullets),
+    /// which then printed every section twice. Only plain prose of a few sentences is kept.
+    public static func isProseHighlight(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, t.count <= 600 else { return false }
+        return !t.split(separator: "\n").contains { line in
+            let l = line.trimmingCharacters(in: .whitespaces)
+            return l.hasPrefix("#") || l.hasPrefix("- ") || l.hasPrefix("* ")
+        }
     }
 
     // MARK: Repo brief and next steps
@@ -417,7 +429,7 @@ public enum GitHubWorkflows {
             "required": ["issues"],
         ]
         let r = recipe("_gh_next",
-                       "You plan practical next steps for a software project. Don't duplicate work that is already in an open issue or pull request.",
+                       "You plan practical next steps for a software project. Don't duplicate work that is already in an open issue or pull request. Name a file, folder or path only if it appears in the material.",
                        "Suggest up to five next-step issues for this project\(focus.map { ", focused on: \($0)" } ?? "").\n\n{{input}}",
                        schema: JSONSchemaConverter.jsonText(schema), long: .merge, temperature: 0.4)
         onProgress?("Planning on device")
