@@ -43,7 +43,28 @@ bash ~/Projects/afm-studio/scripts/install.sh     # CLI only: links afm into ~/.
 
 If you can't write to `/Applications`, `--install` uses `~/Applications` instead. An older copy in `~/Applications` goes to the Trash, and a running copy is quit first.
 
-The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
+The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
+
+### Keep Keychain approvals across rebuilds
+
+By default the app is ad-hoc signed, and every rebuild looks like a new program to the Keychain, so it asks again for your Anthropic and GitHub tokens. Run this once to give your builds a stable identity:
+
+```bash
+bash ~/Projects/afm-studio/scripts/make-signing-identity.sh
+```
+
+It creates a self-signed certificate named "AFM Studio Local Signing" in your login keychain and asks for your password once to trust it for code signing. `build-app.sh` and `install.sh` use it automatically from then on. After the next rebuild, choose **Always Allow** at each Keychain prompt, and updates won't ask again. The certificate works only on this Mac and can't publish or notarize apps. `--remove` deletes it.
+
+### Updates
+
+AFM Studio can tell you when a new release is out. Turn on **Check for updates once a day** in Settings > General, or run `afm update auto on`. When a newer release exists, an **Update available** button appears at the bottom of the sidebar. It shows the release notes and how to update your copy. You can also choose **AFM Studio > Check for Updates…** or run:
+
+```bash
+afm update check      # compare this copy with the latest release on GitHub
+afm update auto on    # check once a day (off by default)
+```
+
+A check is one request to GitHub's releases API, and nothing about you or your use is sent. For a copy built from source, updating means `git pull --ff-only` and `bash scripts/build-app.sh --install`. For a downloaded copy, download the new zip. Installing with one click is next on the [roadmap](ROADMAP.md).
 
 ## macOS 27 and AFM 3
 
@@ -242,6 +263,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 | GitHub integration | `api.github.com` | Integrations, then the GitHub switch |
 | Claude features | `api.anthropic.com` | adding an Anthropic API key |
 | Blog drafts written by Claude | `api.anthropic.com` | choosing Claude as the writer |
+| Update checks | `api.github.com` (latest release only) | Settings > General, `afm update auto on`, or checking by hand |
 
 **Files the model and Claude can't read.** The file tools and the MCP `path` argument read only from your home folder and any `AFM_ALLOWED_PATHS` folders. Inside those, these are always refused:
 
@@ -272,6 +294,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 | `ANTHROPIC_API_KEY` | Fallback Anthropic key when the Keychain has none. |
 | `GITHUB_TOKEN`, `GH_TOKEN` | Fallback GitHub tokens after the Keychain and `gh`. |
 | `NO_COLOR` | Turns off colored terminal output. |
+| `AFM_SIGN_IDENTITY` | The code-signing identity the build scripts use. The default is `AFM Studio Local Signing`. |
 
 ## Troubleshooting
 
@@ -279,7 +302,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 - **The model is still preparing.** It downloads after Apple Intelligence is first turned on. Wait a few minutes and try again.
 - **A harmless prompt is blocked.** Apple's guardrails sometimes misfire. Try `--permissive` when you're transforming your own text.
 - **The input is larger than the context window.** The model has 4,096 tokens in total. Use a recipe, which chunks long input, or check the size with `afm tokens`.
-- **A Keychain prompt after rebuilding.** Each ad-hoc build is a new program to the Keychain. Choose Always Allow, or save the key again.
+- **A Keychain prompt after rebuilding.** Each ad-hoc build is a new program to the Keychain. Run `scripts/make-signing-identity.sh` once, rebuild, and choose Always Allow. See [Keep Keychain approvals across rebuilds](#keep-keychain-approvals-across-rebuilds).
 - **Claude doesn't list the afm tools.** Run `afm claude status`, then restart Claude Code or Claude Desktop.
 - **The API server answers with 403 or 415.** Use `127.0.0.1` or `localhost` in the URL, and send `Content-Type: application/json`.
 - **A command works in Terminal.app but not in the app's terminal.** Both start your login shell, but GUI apps don't inherit what you export in one Terminal window. Put `PATH` changes in `~/.zprofile` or `~/.zshrc`.
@@ -296,6 +319,7 @@ rm -rf /Applications/"AFM Studio.app" ~/Applications/"AFM Studio.app" ~/.local/b
 rm -rf ~/Library/Application\ Support/AFMStudio            # chats, history, recipes and settings
 rm -f ~/Library/Application\ Support/Claude/claude_desktop_config.afm-backup.json
 defaults delete dev.ry-ops.afm-studio                      # terminal height and text size
+bash ~/Projects/afm-studio/scripts/make-signing-identity.sh --remove   # the local signing certificate, if you made one
 ```
 
 ## Project layout
@@ -307,7 +331,7 @@ Sources/AFMGitHub    the GitHub integration (its own module)
 Sources/afm          the CLI
 Sources/AFMStudio    the SwiftUI app, including the terminal panel (TerminalView.swift)
 Tests/SelfTest       self-test (swift run afm-selftest)
-scripts/             app bundle, icon and install scripts, and make-visuals.py for the README animations
+scripts/             app bundle, install, signing identity and icon scripts, and make-visuals.py for the README animations
 docs/images/         screenshots and the animated SVGs
 ```
 

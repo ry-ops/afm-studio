@@ -120,6 +120,31 @@ await suite("Benchmark math") {
     check(Bench.decodeSpeed(runs) == 130.0 / 3.0, "overall speed weights by tokens, skips untimed runs")
 }
 
+await suite("Updates") {
+    check(SemVer("v0.2.0")! > SemVer("0.1.0")!, "newer minor wins")
+    check(SemVer("0.10.0")! > SemVer("0.9.9")!, "numbers compare as numbers")
+    check(SemVer("1.0.0-beta.2")! < SemVer("1.0.0")!, "pre-release sorts before release")
+    check(SemVer("1.0.0-beta.10")! > SemVer("1.0.0-beta.2")!, "pre-release numbers compare as numbers")
+    check(SemVer("1.0") == SemVer("1.0.0"), "missing parts count as zero")
+    check(SemVer("latest") == nil && SemVer("1.x") == nil, "junk tags don't parse")
+    let json = """
+    {"tag_name":"v0.2.0","name":"AFM Studio 0.2.0","body":"Notes","html_url":"https://github.com/ry-ops/afm-studio/releases/tag/v0.2.0",
+     "published_at":"2026-11-01T12:00:00Z","assets":[
+       {"name":"AFM-Studio-0.2.0.zip","browser_download_url":"https://github.com/ry-ops/afm-studio/releases/download/v0.2.0/AFM-Studio-0.2.0.zip","size":5},
+       {"name":"evil.zip","browser_download_url":"https://evil.example/evil.zip","size":1}]}
+    """
+    let r = try Updates.parse(Data(json.utf8))
+    check(r.version?.description == "0.2.0" && r.publishedAt != nil, "parses the release")
+    check(r.assets.map(\.name) == ["AFM-Studio-0.2.0.zip"] && r.appZip != nil, "keeps only downloads from this repo")
+    let foreign = try Updates.parse(Data(#"{"tag_name":"v9.0.0","html_url":"https://evil.example/x"}"#.utf8))
+    check(foreign.url == "https://github.com/ry-ops/afm-studio/releases/tag/v9.0.0", "replaces a release link that points elsewhere")
+    check(Updates.status(for: r, current: SemVer("0.1.0")!) == .available(r), "newer release is offered")
+    check(Updates.status(for: r, current: SemVer("0.2.0")!) == .upToDate(latest: "0.2.0"), "same version is up to date")
+    check(Updates.status(for: nil) == .noReleases, "no releases yet")
+    check(Updates.howToUpdate(r, source: "/tmp/it's here").contains("'/tmp/it'\\''s here'"), "source path is shell-quoted")
+    check(AFMSettings().checkForUpdates == false, "update checks start off")
+}
+
 await suite("Model config") {
     // Settings written before adapters were removed still carry an adapterPath key.
     let legacy = #"{"guardrails":"permissive","useCase":"tagging","adapterPath":"/old/x.fmadapter"}"#

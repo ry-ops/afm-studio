@@ -8,16 +8,19 @@ struct SettingsView: View {
         @Bindable var app = app
         TabView {
             Form {
-                Toggle("Keep a local history of runs", isOn: $app.settings.historyEnabled)
-                LabeledContent("Data folder") {
-                    Button("Reveal in Finder") { NSWorkspace.shared.open(AFMPaths.root) }
+                Section {
+                    Toggle("Keep a local history of runs", isOn: $app.settings.historyEnabled)
+                    LabeledContent("Data folder") {
+                        Button("Reveal in Finder") { NSWorkspace.shared.open(AFMPaths.root) }
+                    }
+                    LabeledContent("History") {
+                        Button("Clear History", role: .destructive) { History.clear() }
+                    }
+                    LabeledContent("API server port") {
+                        TextField("", value: $app.settings.serverPort, format: .number.grouping(.never)).frame(width: 90)
+                    }
                 }
-                LabeledContent("History") {
-                    Button("Clear History", role: .destructive) { History.clear() }
-                }
-                LabeledContent("API server port") {
-                    TextField("", value: $app.settings.serverPort, format: .number.grouping(.never)).frame(width: 90)
-                }
+                UpdateSettings()
             }
             .tabItem { Label("General", systemImage: "gearshape") }
 

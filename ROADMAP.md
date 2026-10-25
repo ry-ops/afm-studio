@@ -4,6 +4,8 @@ What's planned for AFM Studio, in rough order. Each item says what it does, how 
 
 ## 1. Self-update from GitHub
 
+**Status.** The first part shipped after 0.1.0. AFM Studio checks GitHub's latest release, when you turn that on or ask, and shows an **Update available** button with the release notes and the steps to update. `afm update check` does the same from Terminal. The build records `AFMSourcePath`, `AFMSourceBranch` and `AFMCommit` in `Info.plist`. `scripts/make-signing-identity.sh` gives builds a stable signature, which settles the Keychain question below. Still to do: one-click **Update and Restart**, `afm update` installing by itself, and `afm update rollback`.
+
 AFM Studio is built from source, so updating it now means pulling the repo and running `scripts/build-app.sh --install` by hand. The update tool does that for you. It checks GitHub for new commits, pulls them, rebuilds, installs, and restarts the app if it was running.
 
 ### What you'll see
@@ -34,9 +36,9 @@ afm update rollback  # put the previous build back
 
 ### Open questions
 
-- **Keychain prompts.** The app is ad-hoc signed, so every rebuild looks like a new program to the Keychain. You'll be asked again for the Anthropic API key and the GitHub token after each update. A stable local signing identity would fix that, and is worth doing alongside this item.
+- **Keychain prompts.** Settled: builds signed with the local identity from `scripts/make-signing-identity.sh` keep the same identity, so Keychain approvals survive updates. Ad-hoc builds still ask again.
 - **Swift toolchain changes.** A macOS or Command Line Tools update can break the build. The update tool should say when the failure looks like a toolchain problem rather than a code problem.
-- **Releases versus commits.** Following `main` gets every commit. Tagged releases with a real version number would make updates calmer. Start with commits and add a "releases only" setting later.
+- **Releases versus commits.** Settled for now: updates follow tagged releases. A setting to follow every commit on `main` could come later for people who build from source.
 
 ## 2. macOS 27 and AFM 3
 

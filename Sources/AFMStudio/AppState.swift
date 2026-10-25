@@ -20,6 +20,7 @@ final class AppState {
     let claude = ClaudeState()
     let github = GitHubState()
     let terminal = TerminalStore()
+    let updates = UpdateState()
 
     init() {
         reloadSessions()
@@ -29,6 +30,7 @@ final class AppState {
         let s = settings
         Task { await claude.sync(settings: s) }
         Task { await watch() }
+        updates.startBackgroundChecks { [weak self] in self?.settings.checkForUpdates == true }
     }
 
     /// Picks up chats created by the CLI or the MCP server and model status changes.

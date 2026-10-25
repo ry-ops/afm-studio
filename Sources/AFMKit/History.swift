@@ -70,6 +70,8 @@ public struct AFMSettings: Codable, Sendable, Equatable {
     public var autoHookClaudeDesktop: Bool = true
     /// On/off switches per integration id. Integration data lives in its own file; credentials in the Keychain.
     public var integrationPrefs: [String: IntegrationPrefs] = [:]
+    /// Off until you turn it on, like every other network feature. Checks GitHub at most once a day.
+    public var checkForUpdates: Bool = false
 
     public init() {}
 
@@ -99,5 +101,6 @@ public struct AFMSettings: Codable, Sendable, Equatable {
         autoHookClaudeCode = (try? c.decode(Bool.self, forKey: .autoHookClaudeCode)) ?? d.autoHookClaudeCode
         autoHookClaudeDesktop = (try? c.decode(Bool.self, forKey: .autoHookClaudeDesktop)) ?? d.autoHookClaudeDesktop
         integrationPrefs = (try? c.decode([String: IntegrationPrefs].self, forKey: .integrationPrefs)) ?? [:]
+        checkForUpdates = (try? c.decode(Bool.self, forKey: .checkForUpdates)) ?? d.checkForUpdates
     }
 }

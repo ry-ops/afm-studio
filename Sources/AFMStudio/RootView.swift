@@ -27,6 +27,7 @@ struct RootView: View {
                     }
                 }
             }
+            .sheet(isPresented: Bindable(app.updates).showSheet) { UpdateSheet().environment(app) }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { app.terminal.toggle() } label: {
@@ -116,13 +117,16 @@ struct Sidebar: View {
         }
         .listStyle(.sidebar)
         .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 8) {
-                Circle().fill(app.status.available ? Color.green : Color.orange).frame(width: 8, height: 8)
-                Text(app.status.available ? "On-device model ready" : "Model unavailable").font(.caption)
-                Spacer()
-                if app.server.running {
-                    Label("API", systemImage: "antenna.radiowaves.left.and.right").font(.caption).foregroundStyle(.secondary)
-                        .help("OpenAI-compatible server is running")
+            VStack(alignment: .leading, spacing: 8) {
+                UpdateBadge()
+                HStack(spacing: 8) {
+                    Circle().fill(app.status.available ? Color.green : Color.orange).frame(width: 8, height: 8)
+                    Text(app.status.available ? "On-device model ready" : "Model unavailable").font(.caption)
+                    Spacer()
+                    if app.server.running {
+                        Label("API", systemImage: "antenna.radiowaves.left.and.right").font(.caption).foregroundStyle(.secondary)
+                            .help("OpenAI-compatible server is running")
+                    }
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)

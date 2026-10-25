@@ -29,6 +29,9 @@ struct AFMStudioApp: App {
         }
         .windowToolbarStyle(.unified)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { app.updates.checkNow() }.disabled(app.updates.checking)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Chat") { app.newChat() }.keyboardShortcut("n")
             }

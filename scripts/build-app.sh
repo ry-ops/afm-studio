@@ -8,6 +8,10 @@ cd "$(dirname "$0")/.."
 CONFIG=release
 APP="build/AFM Studio.app"
 VERSION=$(sed -n 's/.*string = "\(.*\)".*/\1/p' Sources/AFMKit/Version.swift)
+# Recorded in Info.plist so the app knows which checkout to update from.
+SOURCE_PATH=$(pwd)
+SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+SOURCE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
 
 echo "→ Building ($CONFIG)…"
 swift build -c "$CONFIG" --product afm
@@ -44,13 +48,17 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSSupportsAutomaticGraphicsSwitching</key><true/>
+  <key>AFMSourcePath</key><string>${SOURCE_PATH}</string>
+  <key>AFMSourceBranch</key><string>${SOURCE_BRANCH}</string>
+  <key>AFMCommit</key><string>${SOURCE_COMMIT}</string>
 </dict>
 </plist>
 PLIST
 
-echo "→ Signing (ad hoc)"
-codesign --force --sign - "$APP/Contents/Helpers/afm"
-codesign --force --sign - "$APP"
+source scripts/signing.sh
+echo "→ Signing $SIGN_NOTE"
+codesign --force --sign "$SIGN" -i dev.ry-ops.afm-studio.cli "$APP/Contents/Helpers/afm"
+codesign --force --sign "$SIGN" "$APP"
 
 echo "✓ Built $APP ($VERSION)"
 
