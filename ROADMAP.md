@@ -2,6 +2,53 @@
 
 What's planned for AFM Studio, in rough order. Each item says what it does, how it should work, and what has to be true before it ships.
 
+## Fixes
+
+Known problems to fix, ahead of the features below. Each one says what's wrong, why it happens and how to fix it.
+
+### Help menu shows "Help isn't available for AFM Studio"
+
+**What's wrong.** Choosing **Help › AFM Studio Help** shows an alert that says "Help isn't available for AFM Studio." The menu offers help the app doesn't have.
+
+**Why.** The app doesn't define a Help menu, so macOS adds its standard **AFM Studio Help** item. That item opens the app's Apple Help Book. The app ships no Help Book, and `Info.plist` has no `CFBundleHelpBookName` or `CFBundleHelpBookFolder`, so macOS shows the alert.
+
+**Fix.** Replace the standard item with `CommandGroup(replacing: .help)` in `Sources/AFMStudio/App.swift`. Don't build a Help Book, since those are hard to maintain and nothing else in the app needs one. The new Help menu should have:
+
+- **AFM Studio Help**, which opens the README on GitHub, at the release tag the app was built from.
+- **Command-Line Reference**, which opens the CLI section of the README. It could show `afm help` in the terminal pane instead.
+- **Release Notes**, which opens the GitHub release for the installed version.
+- **Report an Issue…**, which opens a new GitHub issue with the app version and macOS version filled in.
+
+Opening a link goes through the browser, so nothing leaves the Mac until the person clicks.
+
+**Done when.** No Help menu item shows the alert. Every item opens the right page. The links are tested in `afm-selftest`, since they're built from the version and the repo URL.
+
+### GitHub search fails with "Validation Failed" for questions about your orgs
+
+**Status.** Fixed on the `fix/github-chat-tools` branch, not yet released.
+
+**What was wrong.** Asking "what open PRs do I have across my repos and my orgs?" failed with "Tool github_search failed: GitHub: Validation Failed," or answered "none" from the wrong tool.
+
+**Why.** The on-device model wrote GitHub search syntax itself. GitHub has no qualifier for "all my orgs", and the model can't know the org names, so it guessed one, such as `repo:org/username`, and GitHub rejected the query. The error also dropped GitHub's explanation. And no chat tool covered PRs that other people or bots opened in your repos.
+
+**What changed.**
+
+- **A `github_open_prs` chat tool** takes a scope of `mine`, `orgs` or `all`. It looks up your orgs, builds the query and pages through the results itself. The model gets totals, a split between your repos and your orgs' repos, counts per owner and repo, and the latest few PRs.
+- **Free-form `github_search` left the on-device chat.** It stays a tool for Claude over MCP.
+- **Search errors keep GitHub's details**, such as which org couldn't be searched. Empty queries are refused, and `author:me` becomes `author:@me`.
+- **`github_read` reads at most two items per answer.** In testing, the model read seven PRs in a row and overflowed its 4K context.
+
+**Tested.** `afm-selftest` covers the query builder, scopes, the summary, the `me` rewrite, error parsing and the per-answer cap. Live runs on the on-device model against real GitHub data:
+
+| Question | 0.2.2 | Fixed |
+| --- | --- | --- |
+| Open PRs in my repos and my orgs | 1 of 3 answered, wrongly "none". 2 of 3 failed with "Validation Failed" | 7 of 7 picked the right tool and scope |
+| Open PRs in my repos | | 5 of 5 answered 49 |
+| Open PRs in my orgs' repos | | 5 of 5 answered 143 |
+| PRs I opened, reviews waiting on me | | Right tool every time. 1 run overflowed context before the cap, 1 later run read PRs it didn't need |
+
+**Known limits.** The model still slips sometimes. One run said 199 when the tool said 192. Another added up the org count wrongly, which is why the summary now gives the split ready-made. One listed Dependabot's PRs as yours after the tool said you had none. The numbers it's given are right, so the answers are worth checking against the tool call.
+
 ## 1. Self-update from GitHub
 
 **Status.** The first part shipped after 0.1.0. AFM Studio checks GitHub's latest release, when you turn that on or ask, and shows an **Update available** button with the release notes and the steps to update. `afm update check` does the same from Terminal. The build records `AFMSourcePath`, `AFMSourceBranch` and `AFMCommit` in `Info.plist`. `scripts/make-signing-identity.sh` gives builds a stable signature, which settles the Keychain question below. Still to do: one-click **Update and Restart**, `afm update` installing by itself, and `afm update rollback`.

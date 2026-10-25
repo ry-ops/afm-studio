@@ -225,6 +225,14 @@ Read-only, drafts only. The on-device model does the reading and writing; AFM St
 
 **Sign-in.** A GitHub token in the Keychain wins (`afm github auth set`, or the app's GitHub > Account tab). Otherwise AFM Studio borrows your `gh` login, then `GITHUB_TOKEN` or `GH_TOKEN`. A fine-grained, read-only token is the tightest option. `afm github auth rm` removes the Keychain token.
 
+**In chat.** With **Tools in chat** on, the on-device model gets three tools. They take plain choices rather than GitHub search syntax, because a 3-billion-parameter model guesses at qualifiers and can't know your organizations' names.
+
+- **Open PRs** counts and lists open pull requests in your own repos, your organizations' repos, or both, including ones bots opened. It looks up your organizations itself and hands the model counts per owner and repo plus the latest few.
+- **My work** lists pull requests you wrote, reviews requested from you and items assigned to you.
+- **Read** reads one issue or pull request. It reads at most two per answer, because each one stays in the model's 4K context.
+
+Free-form GitHub search is a Claude-only tool, since Claude writes search queries well.
+
 **Blog drafts.** `afm github blog setup owner/blog-repo` reads the repo once and learns where posts live, the frontmatter author, the allowed categories, and any "Writing Style" section in its docs. That setup stays on this Mac. Drafts are saved as Markdown with matching frontmatter. The on-device writer plans an outline and then writes each part, because a whole post won't fit in its context. It can still get facts wrong, so give it good notes and read the result. With an Anthropic key you can pick Claude as the writer instead.
 
 **Honest limits.** Summaries and triage are solid. PR descriptions summarize each changed file first so large diffs still fit. Long-form writing is where a 3-billion-parameter model shows its size.
