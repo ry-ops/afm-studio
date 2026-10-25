@@ -107,8 +107,22 @@ await suite("JSON fences") {
     check(JSONRender.unfenced("```json\n{\"c\": 3}") == "{\"c\": 3}", "unclosed fence")
 }
 
-await suite("Adapters") {
-    checkThrows("missing adapter file") { _ = try AdapterInfo.load(path: "/nonexistent/x.fmadapter") }
+await suite("Model config") {
+    // Settings written before adapters were removed still carry an adapterPath key.
+    let legacy = #"{"guardrails":"permissive","useCase":"tagging","adapterPath":"/old/x.fmadapter"}"#
+    let cfg = try? JSONDecoder().decode(ModelConfig.self, from: Data(legacy.utf8))
+    check(cfg == ModelConfig(guardrails: .permissive, useCase: .tagging), "legacy settings with an adapter path still decode")
+}
+
+await suite("Error mapping") {
+    // macOS 27 throws LanguageModelError. These codes drive chat compaction and the fix hints users see.
+    let overflow = LanguageModelError.contextSizeExceeded(.init(contextSize: 4096, tokenCount: 5000, debugDescription: "too long"))
+    check(AFMError.from(overflow).code == "context_exceeded", "context overflow")
+    check(AFMError.from(overflow).message.contains("5000"), "context overflow names the token count")
+    check(AFMError.from(LanguageModelError.guardrailViolation(.init(debugDescription: "unsafe"))).code == "guardrail", "guardrail violation")
+    check(AFMError.from(LanguageModelError.rateLimited(.init(resetDate: nil, debugDescription: "slow down"))).code == "rate_limited", "rate limited")
+    check(AFMError.from(SystemLanguageModel.Error.assetsUnavailable(.init(debugDescription: "downloading"))).code == "assets_unavailable", "assets unavailable")
+    check(AFMError.from(LanguageModelSession.Error.concurrentRequests).code == "concurrent", "concurrent requests")
 }
 
 await suite("Network guard") {

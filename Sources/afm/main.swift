@@ -16,7 +16,6 @@ struct Args {
     var seed: UInt64?
     var permissive = false
     var tagging = false
-    var adapter: String?
     var stream: Bool?
     var json = false
     var file: String?
@@ -37,7 +36,6 @@ struct Args {
         var c = AFMSettings.load().defaultConfig
         if permissive { c.guardrails = .permissive }
         if tagging { c.useCase = .tagging }
-        if let adapter { c.adapterPath = adapter }
         return c
     }
 }
@@ -69,7 +67,6 @@ func parseArgs(_ raw: [String]) -> Args {
         case "--seed": a.seed = UInt64(value(arg))
         case "--permissive": a.permissive = true
         case "--tagging": a.tagging = true
-        case "--adapter": a.adapter = value(arg)
         case "--stream": a.stream = true
         case "--no-stream": a.stream = false
         case "--json": a.json = true
@@ -197,7 +194,7 @@ let help = """
   -t, --temp N          Temperature            -m, --max-tokens N   Response limit
   --greedy | --top-k N | --top-p N   Sampling  --seed N             Reproducible sampling
   --permissive          Looser guardrails for transforming your own text
-  --tagging             Content-tagging model  --adapter PATH       Custom .fmadapter
+  --tagging             Content-tagging model
   --tool NAME[,NAME]    Let the model call tools (safe, all, datetime, calculator, ...)
   -f, --file PATH       Read input from a file -p, --param K=V      Recipe parameter
   --json                Machine-readable output --stats             Timing and token stats
@@ -326,15 +323,6 @@ func cmdStatus(_ a: Args) {
     out("  macOS            \(s.osVersion)")
     out("  Languages        \(s.languages.count): " + s.languages.map(ModelStatus.languageName).joined(separator: ", "))
     out("  Data folder      \(AFMPaths.root.path)")
-    if let p = a.config.adapterPath, !p.isEmpty {
-        do {
-            let info = try AdapterInfo.load(path: p)
-            out("  Adapter          \(info.path)")
-            for (k, v) in info.metadata { out("    \(k): \(v)") }
-        } catch {
-            out(warn("  Adapter          ") + AFMError.from(error).fullDescription)
-        }
-    }
 }
 
 func cmdBench(_ a: Args) async {

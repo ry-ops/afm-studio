@@ -43,6 +43,6 @@ public struct GenOptions: Codable, Sendable, Equatable, Hashable {
         case .topK: mode = .random(top: max(1, topK), seed: seed)
         case .topP: mode = .random(probabilityThreshold: min(max(topP, 0.01), 1.0), seed: seed)
         }
-        return GenerationOptions(sampling: mode, temperature: temperature, maximumResponseTokens: maxTokens)
+        return GenerationOptions(samplingMode: mode, temperature: temperature, maximumResponseTokens: maxTokens)
     }
 }

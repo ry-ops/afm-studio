@@ -40,7 +40,7 @@ struct SettingsView: View {
             .tabItem { Label("Defaults", systemImage: "slider.horizontal.3") }
         }
         .formStyle(.grouped)
-        .frame(width: 520, height: 520)
+        .frame(width: 520, height: ScreenFit.height(520, chrome: 100))
         .onChange(of: app.settings) { app.saveSettings() }
     }
 }

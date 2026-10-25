@@ -3,11 +3,11 @@ import Charts
 import AFMKit
 
 struct BenchView: View {
-    @State private var runs: [BenchRun] = []
-    @State private var rounds = 1
-    @State private var running = false
-    @State private var error: String?
-    @State private var task: Task<Void, Never>?
+    @ViewState private var runs: [BenchRun] = []
+    @ViewState private var rounds = 1
+    @ViewState private var running = false
+    @ViewState private var error: String?
+    @ViewState private var task: Task<Void, Never>?
 
     var meanTPS: Double { runs.isEmpty ? 0 : runs.map(\.tokensPerSecond).reduce(0, +) / Double(runs.count) }
     var medianTTFT: Double { runs.isEmpty ? 0 : runs.map(\.firstToken).sorted()[runs.count / 2] }

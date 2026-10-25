@@ -40,10 +40,10 @@ afm update rollback  # put the previous build back
 
 ## 2. macOS 27 and AFM 3
 
-These need the macOS 27 SDK, and each one sits behind `#available(macOS 27, *)` so the app keeps working on macOS 26.
+AFM Studio now requires macOS 27, so these can use the macOS 27 SDK directly.
 
 - **Image input.** Attach images in chat, recipes and batch runs, and accept image content in the OpenAI-compatible API and MCP tools.
 - **Private Cloud Compute model.** Offer Apple's server model alongside the on-device one, with a clear label wherever a request leaves the Mac.
 - **Dynamic Profiles.** Switch model, tools and instructions within one chat, for example handing a hard step to the server model.
 - **Evaluations.** Run a recipe against saved test cases and report regressions, and add an `afm eval` command.
-- **Adapters for AFM 3.** Document retraining with the new adapter toolkit, and list compatible adapters with `compatibleAdapterIdentifiers`.
+- **Adapters for AFM 3.** The macOS 27 SDK removed the adapter API, so AFM Studio removed adapter support. Bring it back if Apple ships a replacement.

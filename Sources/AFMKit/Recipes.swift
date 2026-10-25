@@ -141,8 +141,7 @@ public enum RecipeRunner {
 
         let schema: GenerationSchema? = try recipe.schema.map { try JSONSchemaConverter.schema(fromJSON: Recipe.render($0, values)) }
         let instructions = Recipe.render(recipe.instructions, values)
-        let model: SystemLanguageModel
-        do { model = try cfg.makeModel() } catch { throw AFMError.from(error) }
+        let model = cfg.makeModel()
         guard model.isAvailable else { throw AFMError.unavailable(.current()) }
 
         let overhead = await Chunker.countTokens(instructions + Recipe.render(recipe.template, values.merging(["input": ""]) { a, _ in a }), model: model)

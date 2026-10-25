@@ -14,7 +14,8 @@ struct RootView: View {
             GeometryReader { geo in
                 VStack(spacing: 0) {
                     if !(app.terminal.visible && app.terminal.maximized) {
-                        paneContent.frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // Panes are designed to fit 520 × 400 points. Below that they scroll rather than overlap.
+                        paneContent.scrollsWhenSmallerThan(width: 520, height: 400)
                     }
                     if app.terminal.visible {
                         if !app.terminal.maximized {
@@ -125,6 +126,7 @@ struct Sidebar: View {
                 }
             }
             .padding(.horizontal, 14).padding(.vertical, 10)
+            .background(.bar)
         }
     }
 

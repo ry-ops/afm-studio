@@ -121,7 +121,7 @@ final class ChatViewModel {
 struct ChatView: View {
     @Environment(AppState.self) private var app
     @Bindable var vm: ChatViewModel
-    @State private var showInspector = true
+    @ViewState private var showInspector = true
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -214,7 +214,7 @@ struct MessageRow: View {
     let message: ChatMessage
     var live = false
     var onFeedback: ((Bool, LanguageModelFeedback.Issue.Category?) -> Void)?
-    @State private var hover = false
+    @ViewState private var hover = false
 
     var body: some View {
         switch message.role {

@@ -10,7 +10,7 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 
 | Surface | What it gives you |
 | --- | --- |
-| **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, adapters, an integrated terminal, and a menu-bar quick-ask panel. |
+| **AFM Studio app** | Chat with tools, 21 recipes, a structured-output builder, batch runs over folders, side-by-side comparisons, a token inspector, benchmarks, history, an integrated terminal, and a menu-bar quick-ask panel. |
 | **`afm` CLI** | Pipe-friendly prompts, recipes, JSON extraction, resumable chats, token counts and benchmarks. |
 | **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model, plus tools from any integration you turn on. Files are processed locally with `path`, so their contents never enter Claude's context. |
 | **OpenAI-compatible API** (`afm serve`) | `/v1/chat/completions` on `127.0.0.1`, with streaming and `response_format: json_schema`. |
@@ -19,9 +19,9 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 
 ## Requirements
 
-- A Mac with Apple silicon, running macOS 26.4 or later
+- A Mac with Apple silicon, running macOS 27.1 or later
 - Apple Intelligence turned on in System Settings
-- The Xcode Command Line Tools with the macOS 26 SDK. The full Xcode app is optional.
+- The Xcode Command Line Tools with the macOS 27 SDK. The full Xcode app is optional.
 
 Run `afm status` to check whether the model is ready.
 
@@ -45,11 +45,13 @@ The first build downloads SwiftTerm through Swift Package Manager. After that, b
 
 ## macOS 27 and AFM 3
 
-In 2026 Apple announced its third generation of foundation models, AFM 3, alongside macOS 27. AFM Studio is built against the macOS 26 SDK and keeps working on macOS 27. Here is what changes when you upgrade.
+In 2026 Apple announced its third generation of foundation models, AFM 3, alongside macOS 27. AFM Studio requires macOS 27.1 or later and builds with the macOS 27 SDK. Here is what changed.
 
-- **Custom adapters need retraining.** Every `.fmadapter` works with one exact system model version. Apple's adapter toolkit 26.0.0 is the last release for macOS 26 and its adapters don't load on macOS 27. AFM Studio says so when an adapter fails to load. `afm status --adapter PATH` and the Model pane's Test button show the adapter's metadata.
+- **Custom adapters are gone.** The macOS 27 SDK removes the API for loading `.fmadapter` files, and it has no replacement. AFM Studio dropped the `--adapter` flag, the adapter line in `afm status` and the Model pane's adapter card. Settings saved by an older version still load, and any adapter path in them is ignored.
 - **Apple ships its own `fm` command.** macOS 27 adds a command-line tool named `fm`. AFM Studio's command stays `afm`, so the two don't collide.
-- **Not yet supported.** The macOS 27 framework adds image input, the Private Cloud Compute model, Dynamic Profiles and an Evaluations framework. Using them needs the macOS 27 SDK, so they aren't in this build.
+- **Views use `@ViewState`, not `@State`.** The macOS 27 SDK turns `@State` into a macro whose plugin ships with Xcode but not with the Command Line Tools. `@ViewState` is an alias for the same property wrapper, so the app builds with either toolchain. Use it in new views.
+- **Errors use the new framework types.** macOS 27 reports model failures as `LanguageModelError` instead of `GenerationError`. AFM Studio maps the new types, so its messages and fix hints are back, and chats again summarize older turns when the context fills up.
+- **Not yet supported.** The macOS 27 framework adds image input, the Private Cloud Compute model, Dynamic Profiles and an Evaluations framework. They aren't in AFM Studio yet. The [roadmap](ROADMAP.md) covers them.
 
 ## The app
 
@@ -63,7 +65,7 @@ In 2026 Apple announced its third generation of foundation models, AFM 3, alongs
 - **Tokens:** exact counts from the on-device tokenizer, measured against the context window.
 - **Benchmark:** time to first token and tokens per second on your Mac, charted.
 - **History:** every run from every surface, stored only on this Mac.
-- **Model:** availability, supported languages, and custom `.fmadapter` adapters with their metadata.
+- **Model:** availability, capabilities and supported languages.
 - **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
 - **Terminal:** a VS Code-style panel with tabs under every pane, running your login shell. **Explain** asks the on-device model what the output means. See [The terminal](#the-terminal).
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.

@@ -56,7 +56,7 @@ struct MarkdownText: View {
 struct CopyButton: View {
     let text: String
     var compact = false
-    @State private var copied = false
+    @ViewState private var copied = false
 
     var body: some View {
         Button {
@@ -185,8 +185,8 @@ struct InputEditor: View {
     @Binding var text: String
     var placeholder = "Paste or type text, or drop a file here"
     var minHeight: CGFloat = 160
-    @State private var dropping = false
-    @State private var tokens: Int?
+    @ViewState private var dropping = false
+    @ViewState private var tokens: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -284,5 +284,65 @@ struct PaneHeader: View {
             }
             Spacer()
         }
+    }
+}
+
+// MARK: - Layouts that fit small screens
+
+/// Two panes side by side when there's room for both minimum widths, stacked top and bottom when there isn't.
+/// Each pane keeps its own scrolling, so on a narrow window nothing is clipped off the right edge.
+struct AdaptiveSplit<Leading: View, Trailing: View>: View {
+    let leadingMinWidth: CGFloat
+    let trailingMinWidth: CGFloat
+    let leadingIdealWidth: CGFloat?
+    let leading: Leading
+    let trailing: Trailing
+
+    init(leadingMinWidth: CGFloat, trailingMinWidth: CGFloat, leadingIdealWidth: CGFloat? = nil,
+         @ViewBuilder leading: () -> Leading, @ViewBuilder trailing: () -> Trailing) {
+        self.leadingMinWidth = leadingMinWidth
+        self.trailingMinWidth = trailingMinWidth
+        self.leadingIdealWidth = leadingIdealWidth
+        self.leading = leading()
+        self.trailing = trailing()
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            if geo.size.width >= leadingMinWidth + trailingMinWidth {
+                HSplitView {
+                    leading.frame(minWidth: leadingMinWidth, idealWidth: leadingIdealWidth)
+                    trailing.frame(minWidth: trailingMinWidth)
+                }
+            } else {
+                VSplitView {
+                    leading.frame(minHeight: 160)
+                    trailing.frame(minHeight: 140)
+                }
+            }
+        }
+    }
+}
+
+extension View {
+    /// Fills the space it's given, but lays out at no less than the minimum size.
+    /// When the space is smaller, for example in a short window or with the terminal open,
+    /// the view scrolls instead of being squeezed until its parts overlap.
+    func scrollsWhenSmallerThan(width minWidth: CGFloat, height minHeight: CGFloat) -> some View {
+        GeometryReader { geo in
+            ScrollView([.horizontal, .vertical]) {
+                frame(width: max(geo.size.width, minWidth), height: max(geo.size.height, minHeight))
+            }
+            .scrollBounceBehavior(.basedOnSize, axes: [.horizontal, .vertical])
+        }
+    }
+}
+
+enum ScreenFit {
+    /// `preferred`, reduced when needed so a sheet or window of that height fits the main screen
+    /// between the menu bar and the Dock. `chrome` is room left for the title bar and toolbar.
+    @MainActor static func height(_ preferred: CGFloat, chrome: CGFloat = 80) -> CGFloat {
+        guard let visible = NSScreen.main?.visibleFrame.height else { return preferred }
+        return max(300, min(preferred, visible - chrome))
     }
 }

@@ -3,9 +3,9 @@ import AFMKit
 
 struct RecipesView: View {
     @Environment(AppState.self) private var app
-    @State private var path: [Recipe] = []
-    @State private var search = ""
-    @State private var editing: Recipe?
+    @ViewState private var path: [Recipe] = []
+    @ViewState private var search = ""
+    @ViewState private var editing: Recipe?
 
     var filtered: [Recipe] {
         guard !search.isEmpty else { return app.recipes }
@@ -70,7 +70,7 @@ struct RecipesView: View {
 
 struct RecipeCard: View {
     let recipe: Recipe
-    @State private var hover = false
+    @ViewState private var hover = false
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: recipe.symbol)
@@ -101,21 +101,21 @@ struct RecipeCard: View {
 struct RecipeRunView: View {
     let recipe: Recipe
     @Environment(AppState.self) private var app
-    @State private var input = ""
-    @State private var params: [String: String] = [:]
-    @State private var output = ""
-    @State private var result: GenerationResult?
-    @State private var running = false
-    @State private var progress: String?
-    @State private var error: String?
-    @State private var task: Task<Void, Never>?
-    @State private var options = GenOptions()
-    @State private var config = ModelConfig()
+    @ViewState private var input = ""
+    @ViewState private var params: [String: String] = [:]
+    @ViewState private var output = ""
+    @ViewState private var result: GenerationResult?
+    @ViewState private var running = false
+    @ViewState private var progress: String?
+    @ViewState private var error: String?
+    @ViewState private var task: Task<Void, Never>?
+    @ViewState private var options = GenOptions()
+    @ViewState private var config = ModelConfig()
 
     var needsInput: Bool { recipe.template.contains("{{input}}") }
 
     var body: some View {
-        HSplitView {
+        AdaptiveSplit(leadingMinWidth: 380, trailingMinWidth: 360) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(spacing: 12) {
@@ -157,8 +157,7 @@ struct RecipeRunView: View {
                 }
                 .padding(22)
             }
-            .frame(minWidth: 380)
-
+        } trailing: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Output").font(.headline)
@@ -192,7 +191,6 @@ struct RecipeRunView: View {
                 if let result { ResultStats(result: result) }
             }
             .padding(22)
-            .frame(minWidth: 360)
         }
         .navigationTitle(recipe.title)
         .onAppear { if params.isEmpty { params = recipe.defaults() } }
@@ -228,13 +226,13 @@ struct RecipeRunView: View {
 }
 
 struct RecipeEditor: View {
-    @State var recipe: Recipe
+    @ViewState var recipe: Recipe
     let onSave: (Recipe) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var paramsText = ""
-    @State private var schemaText = ""
-    @State private var schemaError: String?
-    @State private var temperature: Double = 0.5
+    @ViewState private var paramsText = ""
+    @ViewState private var schemaText = ""
+    @ViewState private var schemaError: String?
+    @ViewState private var temperature: Double = 0.5
 
     var body: some View {
         VStack(spacing: 0) {
@@ -279,7 +277,7 @@ struct RecipeEditor: View {
             }
             .padding()
         }
-        .frame(width: 620, height: 720)
+        .frame(width: 620, height: ScreenFit.height(720))
         .onAppear {
             paramsText = recipe.params.map { p in ([p.key + " = " + p.defaultValue] + (p.choices ?? []).filter { $0 != p.defaultValue }).joined(separator: " | ") }.joined(separator: "\n")
             schemaText = recipe.schema.map { JSONRender.pretty(json: $0) } ?? ""

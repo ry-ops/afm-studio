@@ -67,18 +67,18 @@ enum SchemaPreset: String, CaseIterable, Identifiable {
 }
 
 struct StructuredView: View {
-    @State private var preset: SchemaPreset = .review
-    @State private var fields: [SchemaField] = SchemaPreset.review.fields
-    @State private var schemaName = "ProductReview"
-    @State private var useRawSchema = false
-    @State private var rawSchema = ""
-    @State private var prompt = SchemaPreset.review.prompt
-    @State private var output = ""
-    @State private var result: GenerationResult?
-    @State private var running = false
-    @State private var error: String?
-    @State private var task: Task<Void, Never>?
-    @State private var showSwift = false
+    @ViewState private var preset: SchemaPreset = .review
+    @ViewState private var fields: [SchemaField] = SchemaPreset.review.fields
+    @ViewState private var schemaName = "ProductReview"
+    @ViewState private var useRawSchema = false
+    @ViewState private var rawSchema = ""
+    @ViewState private var prompt = SchemaPreset.review.prompt
+    @ViewState private var output = ""
+    @ViewState private var result: GenerationResult?
+    @ViewState private var running = false
+    @ViewState private var error: String?
+    @ViewState private var task: Task<Void, Never>?
+    @ViewState private var showSwift = false
 
     var schemaJSON: [String: Any] {
         var props: [String: Any] = [:]
@@ -108,25 +108,25 @@ struct StructuredView: View {
     }
 
     var body: some View {
-        HSplitView {
+        AdaptiveSplit(leadingMinWidth: 470, trailingMinWidth: 280) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     PaneHeader(title: "Structured Output", subtitle: "Guaranteed-valid JSON through on-device constrained decoding.", symbol: "curlybraces.square")
                     HStack {
                         Picker("Start from", selection: $preset) { ForEach(SchemaPreset.allCases) { Text($0.rawValue).tag($0) } }
-                            .frame(maxWidth: 260)
+                            .fixedSize()
                             .onChange(of: preset) {
                                 fields = preset.fields
                                 schemaName = preset.title
                                 prompt = preset.prompt
                                 rawSchema = JSONSchemaConverter.jsonText(schemaJSON)
                             }
-                        Spacer()
+                        Spacer(minLength: 8)
                         Picker("", selection: $useRawSchema) {
                             Text("Builder").tag(false)
                             Text("JSON Schema").tag(true)
                         }
-                        .pickerStyle(.segmented).frame(width: 200)
+                        .pickerStyle(.segmented).fixedSize()
                         .onChange(of: useRawSchema) { if useRawSchema { rawSchema = JSONSchemaConverter.jsonText(schemaJSON) } }
                     }
                     if useRawSchema {
@@ -149,13 +149,13 @@ struct StructuredView: View {
                                 .font(.caption).foregroundStyle(.secondary)
                                 ForEach($fields) { $f in
                                     GridRow {
-                                        TextField("name", text: $f.name).frame(minWidth: 100, maxWidth: 150)
+                                        TextField("name", text: $f.name).frame(minWidth: 90, maxWidth: 150)
                                         Picker("", selection: $f.kind) { ForEach(SchemaField.Kind.allCases) { Text($0.title).tag($0) } }
-                                            .labelsHidden().frame(width: 130)
+                                            .labelsHidden().frame(width: 120)
                                         if f.kind == .choice {
-                                            TextField("a, b, c", text: $f.choices).frame(minWidth: 120)
+                                            TextField("a, b, c", text: $f.choices).frame(minWidth: 100)
                                         } else {
-                                            TextField("optional", text: $f.detail).frame(minWidth: 120)
+                                            TextField("optional", text: $f.detail).frame(minWidth: 100)
                                         }
                                         Toggle("", isOn: $f.required).toggleStyle(.checkbox).labelsHidden().help("Required")
                                         Button { fields.removeAll { $0.id == f.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.borderless)
@@ -186,8 +186,7 @@ struct StructuredView: View {
                 }
                 .padding(22)
             }
-            .frame(minWidth: 440)
-
+        } trailing: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("JSON").font(.headline)
@@ -208,7 +207,6 @@ struct StructuredView: View {
                 if let result { ResultStats(result: result) }
             }
             .padding(22)
-            .frame(minWidth: 300)
         }
         .sheet(isPresented: $showSwift) { SwiftCodeSheet(code: swiftCode) }
     }
@@ -284,6 +282,6 @@ struct SwiftCodeSheet: View {
             HStack { Spacer(); CopyButton(text: code); Button("Done") { dismiss() }.keyboardShortcut(.defaultAction) }
         }
         .padding(20)
-        .frame(width: 560, height: 480)
+        .frame(width: 560, height: ScreenFit.height(480))
     }
 }

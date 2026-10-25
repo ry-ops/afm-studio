@@ -4,8 +4,6 @@ import AFMKit
 
 struct ModelView: View {
     @Environment(AppState.self) private var app
-    @State private var adapterPath = ""
-    @State private var adapterResult: String?
 
     var body: some View {
         let s = app.status
@@ -33,7 +31,6 @@ struct ModelView: View {
                             GridRow { Text("Content tagging").foregroundStyle(.secondary); Text(s.taggingAvailable ? "Available" : "Unavailable") }
                             GridRow { Text("Guided JSON").foregroundStyle(.secondary); Text("Yes, constrained decoding") }
                             GridRow { Text("Tool calling").foregroundStyle(.secondary); Text("Yes") }
-                            GridRow { Text("Custom adapters").foregroundStyle(.secondary); Text(".fmadapter files") }
                             GridRow { Text("macOS").foregroundStyle(.secondary); Text(s.osVersion) }
                         }
                     }
@@ -47,50 +44,8 @@ struct ModelView: View {
                         ForEach(s.languages, id: \.self) { l in Text(ModelStatus.languageName(l)).font(.callout) }
                     }
                 }
-                Card(title: "Custom adapter", symbol: "puzzlepiece.extension") {
-                    Text("Adapters trained with Apple's Foundation Models adapter toolkit specialize the model for one task. Load an .fmadapter to use it everywhere in AFM Studio.")
-                        .font(.callout).foregroundStyle(.secondary)
-                    HStack {
-                        TextField("Path to .fmadapter", text: $adapterPath).textFieldStyle(.roundedBorder)
-                        Button("Choose…") {
-                            let p = NSOpenPanel()
-                            p.canChooseDirectories = true
-                            p.canChooseFiles = true
-                            if p.runModal() == .OK, let u = p.url { adapterPath = u.path }
-                        }
-                        Button("Test") { test() }.disabled(adapterPath.isEmpty)
-                    }
-                    if let adapterResult { Text(adapterResult).font(.callout) }
-                    HStack {
-                        Button("Use as Default") {
-                            app.settings.defaultConfig.adapterPath = adapterPath.isEmpty ? nil : adapterPath
-                            app.saveSettings()
-                            adapterResult = "Saved. New chats and the CLI will use this adapter."
-                        }
-                        .disabled(adapterPath.isEmpty)
-                        if app.settings.defaultConfig.adapterPath != nil {
-                            Button("Remove Default Adapter") {
-                                app.settings.defaultConfig.adapterPath = nil
-                                app.saveSettings()
-                                adapterResult = "Using the base model."
-                            }
-                        }
-                    }
-                }
             }
             .padding(22)
-        }
-        .onAppear { adapterPath = app.settings.defaultConfig.adapterPath ?? "" }
-    }
-
-    func test() {
-        do {
-            let info = try AdapterInfo.load(path: adapterPath)
-            let m = try ModelConfig(adapterPath: adapterPath).makeModel()
-            let head = m.isAvailable ? "✓ Adapter loaded and the model is available." : "Adapter loaded, but the model isn't available."
-            adapterResult = head + "\n" + info.summary + "\nAdapters only work with the system model version they were trained for. Retrain after a major macOS update."
-        } catch {
-            adapterResult = "✗ " + AFMError.from(error).fullDescription
         }
     }
 }

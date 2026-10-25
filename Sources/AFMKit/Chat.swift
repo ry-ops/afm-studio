@@ -137,7 +137,7 @@ public final class ChatEngine: @unchecked Sendable {
     }
 
     private func makeSession(tracker: ToolCallTracker) throws -> LanguageModelSession {
-        let m = try record.config.makeModel()
+        let m = record.config.makeModel()
         guard m.isAvailable else { throw AFMError.unavailable(.current()) }
         model = m
         var tools = ToolRegistry.make(allowSensitiveTools ? record.tools : record.tools.filter { !$0.isSensitive }, tracker: tracker)
@@ -231,7 +231,7 @@ public final class ChatEngine: @unchecked Sendable {
                     save()
                     throw CancellationError()
                 }
-                if case LanguageModelSession.GenerationError.exceededContextWindowSize = error, attempt == 0 {
+                if case LanguageModelError.contextSizeExceeded = error, attempt == 0 {
                     attempt += 1
                     try await compact(onNotice: onNotice)
                     continue
@@ -255,7 +255,6 @@ public final class ChatEngine: @unchecked Sendable {
         if convo.count > 9000 { convo = String(convo.suffix(9000)) }
         var cfg = record.config
         cfg.guardrails = .permissive
-        cfg.adapterPath = nil
         let summary = try await AFM.generate(
             "Summarize this conversation in under 120 words. Keep names, facts, numbers, decisions and open questions.\n\n" + convo,
             instructions: "You write compact, faithful conversation summaries.", options: GenOptions(temperature: 0.2), config: cfg)

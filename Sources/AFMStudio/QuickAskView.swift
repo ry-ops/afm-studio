@@ -5,11 +5,11 @@ import AFMKit
 struct QuickAskView: View {
     @Environment(AppState.self) private var app
     @Environment(\.openWindow) private var openWindow
-    @State private var prompt = ""
-    @State private var output = ""
-    @State private var running = false
-    @State private var label: String?
-    @State private var task: Task<Void, Never>?
+    @ViewState private var prompt = ""
+    @ViewState private var output = ""
+    @ViewState private var running = false
+    @ViewState private var label: String?
+    @ViewState private var task: Task<Void, Never>?
     @FocusState private var focused: Bool
 
     let actions: [(String, String, String, [String: String])] = [

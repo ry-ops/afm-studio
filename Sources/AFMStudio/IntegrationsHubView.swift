@@ -21,7 +21,7 @@ struct IntegrationsHubView: View {
 struct IntegrationCard: View {
     @Environment(AppState.self) private var app
     let integration: any AFMIntegration
-    @State private var changedForClaude = false
+    @ViewState private var changedForClaude = false
 
     var prefs: IntegrationPrefs { app.settings.integrationPrefs[integration.id] ?? IntegrationPrefs() }
 

@@ -13,16 +13,16 @@ struct Variant: Identifiable, Hashable {
 }
 
 struct CompareView: View {
-    @State private var prompt = "Write a two-sentence product description for a solar-powered camping lantern."
-    @State private var instructions = ""
-    @State private var variants: [Variant] = [
+    @ViewState private var prompt = "Write a two-sentence product description for a solar-powered camping lantern."
+    @ViewState private var instructions = ""
+    @ViewState private var variants: [Variant] = [
         Variant(name: "Precise", options: GenOptions(sampling: .greedy), config: ModelConfig()),
         Variant(name: "Balanced", options: GenOptions(temperature: 0.7), config: ModelConfig()),
         Variant(name: "Creative", options: GenOptions(temperature: 1.3, sampling: .topP, topP: 0.95), config: ModelConfig()),
     ]
-    @State private var running = false
-    @State private var task: Task<Void, Never>?
-    @State private var editing: Variant.ID?
+    @ViewState private var running = false
+    @ViewState private var task: Task<Void, Never>?
+    @ViewState private var editing: Variant.ID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -70,7 +70,7 @@ struct CompareView: View {
                                 }
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             }
-                            .frame(minHeight: 220)
+                            .frame(minHeight: 120)
                             if let r = v.result {
                                 HStack { StatChip(symbol: "timer", text: String(format: "%.1fs", r.seconds)); if let o = r.outputTokens { StatChip(symbol: "text.word.spacing", text: "\(o) tok") }; Spacer(); CopyButton(text: v.output, compact: true) }
                             }

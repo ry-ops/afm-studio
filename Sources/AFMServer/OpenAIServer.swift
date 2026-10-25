@@ -280,7 +280,7 @@ public final class OpenAIServer: @unchecked Sendable {
         let prompt = Self.text(convo[lastUser]["content"])
 
         do {
-            let model = try config.makeModel()
+            let model = config.makeModel()
             guard model.isAvailable else { return error(c, 503, ModelStatus.current().guidance ?? "Model unavailable", code: "unavailable") }
             var entries: [Transcript.Entry] = []
             if !system.isEmpty { entries.append(.instructions(Transcript.Instructions(segments: [.text(.init(content: system))], toolDefinitions: []))) }

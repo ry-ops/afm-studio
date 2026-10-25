@@ -6,7 +6,9 @@ let v5: [SwiftSetting] = [.swiftLanguageMode(.v5)]
 
 let package = Package(
     name: "afm-studio",
-    platforms: [.macOS("26.4")],
+    // AFM Studio requires macOS 27.1. The macOS 27.0 SDK only accepts deployment targets up to 27.0.x,
+    // so raise this to 27.1, along with LSMinimumSystemVersion in scripts/build-app.sh, once the 27.1 SDK is out.
+    platforms: [.macOS("27.0")],
     products: [
         .executable(name: "afm", targets: ["afm"]),
         .executable(name: "AFMStudio", targets: ["AFMStudio"]),

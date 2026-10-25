@@ -2,12 +2,12 @@ import SwiftUI
 import AFMKit
 
 struct TokensView: View {
-    @State private var text = ""
-    @State private var instructions = ""
-    @State private var tokens = 0
-    @State private var instructionTokens = 0
-    @State private var chunks = 1
-    @State private var counting = false
+    @ViewState private var text = ""
+    @ViewState private var instructions = ""
+    @ViewState private var tokens = 0
+    @ViewState private var instructionTokens = 0
+    @ViewState private var chunks = 1
+    @ViewState private var counting = false
     let context = AFM.contextSize
 
     var total: Int { tokens + instructionTokens }
@@ -51,8 +51,8 @@ struct TokensView: View {
             if Task.isCancelled { return }
             tokens = await AFM.tokenCount(text)
             instructionTokens = instructions.isEmpty ? 0 : await AFM.tokenCount(instructions: instructions)
-            if tokens > 3000, let m = try? ModelConfig().makeModel() {
-                chunks = await Chunker.split(text, maxTokens: 2600, model: m).count
+            if tokens > 3000 {
+                chunks = await Chunker.split(text, maxTokens: 2600, model: ModelConfig().makeModel()).count
             } else { chunks = 1 }
         }
     }

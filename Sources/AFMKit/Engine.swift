@@ -72,7 +72,7 @@ public enum AFM {
                            onPartial: (@Sendable (String) -> Void)? = nil,
                            onTool: (@Sendable (String) -> Void)? = nil) async throws -> GenerationResult {
         do {
-            let model = try req.config.makeModel()
+            let model = req.config.makeModel()
             guard model.isAvailable else { throw AFMError.unavailable(.current()) }
             let tracker = ToolCallTracker(onCall: onTool)
             let tools = ToolRegistry.make(req.tools, tracker: tracker)
@@ -146,13 +146,11 @@ public enum AFM {
 
     /// Exact token count from the on-device tokenizer (falls back to an estimate).
     public static func tokenCount(_ text: String, config: ModelConfig = .default) async -> Int {
-        guard let model = try? config.makeModel() else { return Chunker.estimate(text) }
-        return await Chunker.countTokens(text, model: model)
+        await Chunker.countTokens(text, model: config.makeModel())
     }
 
     public static func tokenCount(instructions: String, config: ModelConfig = .default) async -> Int {
-        guard let model = try? config.makeModel() else { return Chunker.estimate(instructions) }
-        return (try? await model.tokenCount(for: Instructions(instructions))) ?? Chunker.estimate(instructions)
+        (try? await config.makeModel().tokenCount(for: Instructions(instructions))) ?? Chunker.estimate(instructions)
     }
 
     public static var contextSize: Int { SystemLanguageModel.default.contextSize }

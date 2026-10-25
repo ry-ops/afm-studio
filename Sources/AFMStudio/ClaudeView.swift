@@ -47,16 +47,16 @@ final class ClaudeState {
 
 struct ClaudeView: View {
     @Environment(AppState.self) private var app
-    @State private var keyInput = ""
-    @State private var prompt = "Explain the difference between a mutex and a semaphore in three sentences."
-    @State private var localText = ""
-    @State private var claudeText = ""
-    @State private var local: GenerationResult?
-    @State private var remote: ClaudeResult?
-    @State private var localError: String?
-    @State private var claudeError: String?
-    @State private var running = false
-    @State private var task: Task<Void, Never>?
+    @ViewState private var keyInput = ""
+    @ViewState private var prompt = "Explain the difference between a mutex and a semaphore in three sentences."
+    @ViewState private var localText = ""
+    @ViewState private var claudeText = ""
+    @ViewState private var local: GenerationResult?
+    @ViewState private var remote: ClaudeResult?
+    @ViewState private var localError: String?
+    @ViewState private var claudeError: String?
+    @ViewState private var running = false
+    @ViewState private var task: Task<Void, Never>?
 
     var claude: ClaudeState { app.claude }
     var model: ClaudeModel { ClaudeModel.find(app.settings.claudeModel) }
@@ -208,14 +208,7 @@ struct ClaudeView: View {
         localText = ""; claudeText = ""; local = nil; remote = nil; localError = nil; claudeError = nil
         let p = prompt, m = app.settings.claudeModel, e = app.settings.claudeEffort
         task = Task {
-            async let cloud: Void = {
-                do {
-                    let r = try await ClaudeClient.fromStoredKey(model: m, effort: e).stream(p, onText: { s in Task { @MainActor in claudeText = s } })
-                    remote = r
-                    claudeText = r.text
-                    History.append(HistoryEntry(source: "studio", kind: "claude", title: r.model, input: p, output: r.text, seconds: r.seconds, outputTokens: r.outputTokens))
-                } catch { if !Task.isCancelled { claudeError = AFMError.from(error).fullDescription } }
-            }()
+            async let cloud: Void = runClaude(p, model: m, effort: e)
             if withLocal {
                 do {
                     let r = try await AFM.run(GenerationRequest(prompt: p), onPartial: { s in Task { @MainActor in localText = s } })
@@ -226,5 +219,17 @@ struct ClaudeView: View {
             await cloud
             running = false
         }
+    }
+
+    /// The Claude half of a comparison. It is main-actor isolated like the rest of the view,
+    /// so it can write view state, and it still runs alongside the local model through `async let`.
+    @MainActor
+    private func runClaude(_ p: String, model m: String, effort e: String) async {
+        do {
+            let r = try await ClaudeClient.fromStoredKey(model: m, effort: e).stream(p, onText: { s in Task { @MainActor in claudeText = s } })
+            remote = r
+            claudeText = r.text
+            History.append(HistoryEntry(source: "studio", kind: "claude", title: r.model, input: p, output: r.text, seconds: r.seconds, outputTokens: r.outputTokens))
+        } catch { if !Task.isCancelled { claudeError = AFMError.from(error).fullDescription } }
     }
 }

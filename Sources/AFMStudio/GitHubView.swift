@@ -85,10 +85,10 @@ struct GitHubView: View {
             }
             Picker("", selection: $gh.tab) { ForEach(GHTab.allCases) { Text($0.rawValue).tag($0) } }
                 .pickerStyle(.segmented).labelsHidden()
-            HSplitView {
+            AdaptiveSplit(leadingMinWidth: 340, trailingMinWidth: 360, leadingIdealWidth: 420) {
                 ScrollView { controls.padding(.trailing, 8).frame(maxWidth: .infinity, alignment: .leading) }
-                    .frame(minWidth: 360, idealWidth: 420)
-                results.frame(minWidth: 380)
+            } trailing: {
+                results
             }
         }
         .padding(22)
@@ -272,7 +272,7 @@ struct GitHubView: View {
             }
             .background(.background, in: RoundedRectangle(cornerRadius: 12))
             .overlay { if gh.output.isEmpty && gh.issues.isEmpty && !gh.running && gh.error == nil {
-                ContentUnavailableView("Nothing yet", systemImage: "tray", description: Text("Pick an action on the left."))
+                ContentUnavailableView("Nothing yet", systemImage: "tray", description: Text("Pick an action to see its result here."))
             } }
             HStack {
                 if let d = gh.prDraft, let u = d.url { Link("Open Pre-filled Pull Request", destination: u) }
@@ -289,13 +289,13 @@ struct GitHubView: View {
 
 struct BlogControls: View {
     @Environment(AppState.self) private var app
-    @State private var setupRepo = ""
-    @State private var topic = ""
-    @State private var notes = ""
-    @State private var sourceRepo = ""
-    @State private var days = 14
-    @State private var engine: BlogWriter.Engine = .onDevice
-    @State private var setupMessage: String?
+    @ViewState private var setupRepo = ""
+    @ViewState private var topic = ""
+    @ViewState private var notes = ""
+    @ViewState private var sourceRepo = ""
+    @ViewState private var days = 14
+    @ViewState private var engine: BlogWriter.Engine = .onDevice
+    @ViewState private var setupMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -349,8 +349,8 @@ struct BlogControls: View {
 
 struct AccountControls: View {
     @Environment(AppState.self) private var app
-    @State private var token = ""
-    @State private var message: String?
+    @ViewState private var token = ""
+    @ViewState private var message: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

@@ -2,11 +2,11 @@ import SwiftUI
 import AFMKit
 
 struct HistoryView: View {
-    @State private var items: [HistoryEntry] = []
-    @State private var search = ""
-    @State private var source = "all"
-    @State private var selection: HistoryEntry.ID?
-    @State private var confirmClear = false
+    @ViewState private var items: [HistoryEntry] = []
+    @ViewState private var search = ""
+    @ViewState private var source = "all"
+    @ViewState private var selection: HistoryEntry.ID?
+    @ViewState private var confirmClear = false
 
     var filtered: [HistoryEntry] {
         items.filter { (source == "all" || $0.source == source) && (search.isEmpty || ($0.title + $0.input + $0.output).localizedCaseInsensitiveContains(search)) }
@@ -16,15 +16,10 @@ struct HistoryView: View {
         VSplitView {
             VStack(alignment: .leading, spacing: 12) {
                 PaneHeader(title: "History", subtitle: "Every run from the app, Terminal, Claude (MCP) and the local API. Stored only on this Mac.", symbol: "clock.arrow.circlepath")
-                HStack {
-                    Picker("Source", selection: $source) {
-                        Text("All").tag("all"); Text("Studio").tag("studio"); Text("Terminal").tag("cli"); Text("Claude (MCP)").tag("mcp"); Text("API").tag("api")
-                    }
-                    .pickerStyle(.segmented).frame(maxWidth: 460)
-                    Spacer()
-                    Text("\(filtered.count) runs").foregroundStyle(.secondary)
-                    Button("Refresh", systemImage: "arrow.clockwise") { load() }
-                    Button("Clear…", systemImage: "trash") { confirmClear = true }.disabled(items.isEmpty)
+                // Segmented when the row has room, a pop-up menu when it doesn't.
+                ViewThatFits(in: .horizontal) {
+                    filterRow { sourcePicker.pickerStyle(.segmented).frame(maxWidth: 460) }
+                    filterRow { sourcePicker.pickerStyle(.menu).fixedSize() }
                 }
                 Table(filtered, selection: $selection) {
                     TableColumn("When") { Text($0.date.formatted(date: .abbreviated, time: .shortened)) }.width(140)
@@ -36,7 +31,7 @@ struct HistoryView: View {
                 .overlay { if filtered.isEmpty { ContentUnavailableView("No history", systemImage: "clock", description: Text("Runs appear here as you use AFM anywhere.")) } }
             }
             .padding([.horizontal, .top], 22)
-            .frame(minHeight: 280)
+            .frame(minHeight: 200)
 
             Group {
                 if let e = items.first(where: { $0.id == selection }) {
@@ -48,12 +43,28 @@ struct HistoryView: View {
                     Text("Select a run to see its input and output.").foregroundStyle(.secondary).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
-            .frame(minHeight: 180)
+            .frame(minHeight: 110)
         }
         .searchable(text: $search, placement: .toolbar)
         .onAppear(perform: load)
         .confirmationDialog("Delete all history?", isPresented: $confirmClear) {
             Button("Delete History", role: .destructive) { History.clear(); load() }
+        }
+    }
+
+    var sourcePicker: some View {
+        Picker("Source", selection: $source) {
+            Text("All").tag("all"); Text("Studio").tag("studio"); Text("Terminal").tag("cli"); Text("Claude (MCP)").tag("mcp"); Text("API").tag("api")
+        }
+    }
+
+    func filterRow(@ViewBuilder picker: () -> some View) -> some View {
+        HStack {
+            picker()
+            Spacer()
+            Text("\(filtered.count) runs").foregroundStyle(.secondary).fixedSize()
+            Button("Refresh", systemImage: "arrow.clockwise") { load() }.fixedSize()
+            Button("Clear…", systemImage: "trash") { confirmClear = true }.disabled(items.isEmpty).fixedSize()
         }
     }
 

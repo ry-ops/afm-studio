@@ -5,7 +5,7 @@ import AFMGitHub
 
 @main
 struct AFMStudioApp: App {
-    @State private var app = AppState()
+    @ViewState private var app = AppState()
 
     init() {
         IntegrationRegistry.install([GitHubIntegration()])
@@ -18,9 +18,15 @@ struct AFMStudioApp: App {
         WindowGroup("AFM Studio", id: "main") {
             RootView()
                 .environment(app)
-                .frame(minWidth: 980, minHeight: 640)
+                // Small enough to fit a 1024 × 640 point display with the Dock showing.
+                .frame(minWidth: 800, minHeight: 420)
+                .keepsWindowOnScreen()
         }
-        .defaultSize(width: 1320, height: 860)
+        .defaultWindowPlacement { _, context in
+            // Open at 1320 × 860 when there's room, otherwise fill most of the visible screen.
+            let visible = context.defaultDisplay.visibleRect
+            return WindowPlacement(.center, size: CGSize(width: min(1320, visible.width * 0.94), height: min(860, visible.height * 0.94)))
+        }
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {

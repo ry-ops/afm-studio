@@ -54,13 +54,13 @@ enum Shell {
 
 struct IntegrationsView: View {
     @Environment(AppState.self) private var app
-    @State private var cliMessage: String?
-    @State private var claudeCodeMessage: String?
-    @State private var desktopMessage: String?
-    @State private var port = "11535"
-    @State private var token = ""
-    @State private var sample = 0
-    @State private var working = false
+    @ViewState private var cliMessage: String?
+    @ViewState private var claudeCodeMessage: String?
+    @ViewState private var desktopMessage: String?
+    @ViewState private var port = "11535"
+    @ViewState private var token = ""
+    @ViewState private var sample = 0
+    @ViewState private var working = false
 
     var cliPath: String { CLILocator.preferred ?? "/path/to/afm" }
     var claudeCommand: String { "claude mcp add --scope user afm -- \"\(cliPath)\" mcp" }

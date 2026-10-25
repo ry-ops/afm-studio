@@ -304,7 +304,7 @@ struct TabChip: View {
     let selected: Bool
     let select: () -> Void
     let close: () -> Void
-    @State private var hover = false
+    @ViewState private var hover = false
 
     var body: some View {
         HStack(spacing: 5) {
@@ -375,7 +375,7 @@ struct ExplainSidebar: View {
 struct PanelResizeHandle: View {
     @Binding var height: CGFloat
     let maxHeight: CGFloat
-    @State private var start: CGFloat?
+    @ViewState private var start: CGFloat?
 
     var body: some View {
         Rectangle()

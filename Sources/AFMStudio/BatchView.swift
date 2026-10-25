@@ -14,13 +14,13 @@ struct BatchItem: Identifiable, Hashable {
 
 struct BatchView: View {
     @Environment(AppState.self) private var app
-    @State private var items: [BatchItem] = []
-    @State private var recipeID = "summarize"
-    @State private var params: [String: String] = [:]
-    @State private var running = false
-    @State private var task: Task<Void, Never>?
-    @State private var selection: BatchItem.ID?
-    @State private var dropping = false
+    @ViewState private var items: [BatchItem] = []
+    @ViewState private var recipeID = "summarize"
+    @ViewState private var params: [String: String] = [:]
+    @ViewState private var running = false
+    @ViewState private var task: Task<Void, Never>?
+    @ViewState private var selection: BatchItem.ID?
+    @ViewState private var dropping = false
 
     var recipe: Recipe? { app.recipes.first { $0.id == recipeID } }
     var doneCount: Int { items.filter { $0.state == .done || $0.state == .failed }.count }
@@ -75,7 +75,7 @@ struct BatchView: View {
                     TableColumn("Time") { i in Text(i.seconds > 0 ? String(format: "%.1fs", i.seconds) : "").monospacedDigit() }.width(60)
                     TableColumn("Result") { i in Text(i.output.replacingOccurrences(of: "\n", with: " ")).lineLimit(1).foregroundStyle(.secondary) }
                 }
-                .frame(minHeight: 180)
+                .frame(maxWidth: .infinity, minHeight: 110)
                 .overlay {
                     if items.isEmpty {
                         ContentUnavailableView("Drop text files or folders here", systemImage: "tray.and.arrow.down",
@@ -100,7 +100,7 @@ struct BatchView: View {
                         Text("Select a row to see its full result.").foregroundStyle(.secondary).padding()
                     }
                 }
-                .frame(minHeight: 140)
+                .frame(maxWidth: .infinity, minHeight: 80)
             }
         }
         .padding(22)
