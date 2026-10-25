@@ -19,6 +19,7 @@ final class AppState {
     let server = ServerController()
     let claude = ClaudeState()
     let github = GitHubState()
+    let terminal = TerminalStore()
 
     init() {
         reloadSessions()

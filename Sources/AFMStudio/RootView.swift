@@ -10,27 +10,52 @@ struct RootView: View {
             Sidebar()
                 .navigationSplitViewColumnWidth(min: 220, ideal: 250, max: 320)
         } detail: {
-            Group {
-                if !app.status.available, app.pane != .model, app.pane != .integrations, app.pane != .claude, app.pane != .github, app.pane != .integrationsHub {
-                    UnavailableView(status: app.status)
-                } else {
-                    switch app.pane {
-                    case .chat(let id): ChatView(vm: app.chatModel(id)).id(id)
-                    case .recipes: RecipesView()
-                    case .structured: StructuredView()
-                    case .batch: BatchView()
-                    case .compare: CompareView()
-                    case .tokens: TokensView()
-                    case .bench: BenchView()
-                    case .history: HistoryView()
-                    case .model: ModelView()
-                    case .claude: ClaudeView()
-                    case .github: GitHubView()
-                    case .integrationsHub: IntegrationsHubView()
-                    case .integrations: IntegrationsView()
-                    case nil: RecipesView()
+            @Bindable var term = app.terminal
+            GeometryReader { geo in
+                VStack(spacing: 0) {
+                    if !(app.terminal.visible && app.terminal.maximized) {
+                        paneContent.frame(maxWidth: .infinity, maxHeight: .infinity)
+                    }
+                    if app.terminal.visible {
+                        if !app.terminal.maximized {
+                            PanelResizeHandle(height: $term.height, maxHeight: geo.size.height - 160)
+                        }
+                        TerminalPanel()
+                            .frame(height: app.terminal.maximized ? nil : min(app.terminal.height, max(120, geo.size.height - 160)))
+                            .frame(maxHeight: app.terminal.maximized ? .infinity : nil)
                     }
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button { app.terminal.toggle() } label: {
+                        Label("Terminal", systemImage: app.terminal.visible ? "terminal.fill" : "terminal")
+                    }
+                    .help("Show or hide the terminal (⌃`)")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var paneContent: some View {
+        if !app.status.available, app.pane != .model, app.pane != .integrations, app.pane != .claude, app.pane != .github, app.pane != .integrationsHub {
+            UnavailableView(status: app.status)
+        } else {
+            switch app.pane {
+            case .chat(let id): ChatView(vm: app.chatModel(id)).id(id)
+            case .recipes: RecipesView()
+            case .structured: StructuredView()
+            case .batch: BatchView()
+            case .compare: CompareView()
+            case .tokens: TokensView()
+            case .bench: BenchView()
+            case .history: HistoryView()
+            case .model: ModelView()
+            case .claude: ClaudeView()
+            case .github: GitHubView()
+            case .integrationsHub: IntegrationsHubView()
+            case .integrations: IntegrationsView()
+            case nil: RecipesView()
             }
         }
     }
