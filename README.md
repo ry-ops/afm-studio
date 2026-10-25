@@ -1,5 +1,7 @@
 # AFM Studio
 
+![AFM Studio: Apple's on-device model, reached from the app, the afm CLI, Claude over MCP and an OpenAI-compatible API, all on your Mac](docs/images/hero.svg)
+
 **Apple's on-device foundation model, everywhere you work on a Mac.** A native SwiftUI app, a command-line tool (`afm`), an MCP server for Claude, and a local OpenAI-compatible API. All of it is one Swift package. Its one third-party dependency is [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) (MIT, pinned to an exact version), which powers the built-in terminal.
 
 ![Recipes](docs/images/recipes.png)
@@ -91,6 +93,8 @@ The shell starts with a clean environment, the way Terminal.app starts one, and 
 The terminal is the one part of AFM Studio built on a third-party package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) 1.99.0 (MIT), pinned to that exact version in `Package.swift`.
 
 ## The CLI
+
+![afm in a terminal: the calculator tool, a sentiment recipe and JSON extraction](docs/images/terminal.svg)
 
 ```bash
 afm "Explain DNS like I'm new to networking"
@@ -216,10 +220,17 @@ afm serve --port 11535 --token "$(openssl rand -hex 16)"
 
 ## Know the model
 
-- **Good at:** summaries, extraction, classification, tagging, rewriting, short drafts, and translation in 15 languages (23 locales).
+![An email turned into typed JSON: each field lights up the words it came from](docs/images/prose-to-json.svg)
+
+- **Good at:** summaries, extraction, classification, tagging, rewriting, short drafts, and translation in 15 languages (24 locales).
 - **Not good at:** world knowledge, multi-step math, long reasoning and writing code. Treat its output as a draft. The calculator tool exists because the model alone gets arithmetic wrong.
 - **Context:** 4,096 tokens for instructions, prompt and reply combined. AFM Studio works around this with chunking and chat compaction.
 - **Guardrails:** Apple's safety filter sometimes blocks harmless prompts. The permissive mode, `--permissive`, helps when you're transforming text you supplied.
+- **Speed:** about half a second to the first token, then roughly 40 tokens a second on an M1. Run `afm bench` to measure your Mac. Replies too short to time show a dash instead of a speed.
+
+![afm bench results drawn at their real speed](docs/images/bench.svg)
+
+The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs. Run it again after capturing new output.
 
 ## Security and privacy
 
@@ -296,7 +307,8 @@ Sources/AFMGitHub    the GitHub integration (its own module)
 Sources/afm          the CLI
 Sources/AFMStudio    the SwiftUI app, including the terminal panel (TerminalView.swift)
 Tests/SelfTest       self-test (swift run afm-selftest)
-scripts/             app bundle, icon and install scripts
+scripts/             app bundle, icon and install scripts, and make-visuals.py for the README animations
+docs/images/         screenshots and the animated SVGs
 ```
 
 ```bash

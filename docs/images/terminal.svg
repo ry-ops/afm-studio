@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="500" viewBox="0 0 920 500" role="img" aria-labelledby="t d">
+<title id="t">afm in the terminal</title>
+<desc id="d">A terminal session: afm uses its calculator tool, labels the sentiment of an email as JSON, and extracts fields from it as JSON, all on device.</desc>
+<style>
+.sans{font-family:ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif}
+.mono{font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}
+@media (prefers-reduced-motion: reduce){*{animation-duration:0s!important;animation-delay:0s!important}}
+@keyframes k1{0%{transform:translateY(0)}78.665%{transform:translateY(0px)}78.675%{transform:translateY(-21px)}90.406%{transform:translateY(-21px)}90.416%{transform:translateY(-42px)}90.406%{transform:translateY(-42px)}90.416%{transform:translateY(-63px)}100%{transform:translateY(-63px)}}.k1{animation:k1 20.868s linear infinite}
+@keyframes k2{0%,2.396%{opacity:0}2.636%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k2{opacity:0;animation:k2 20.868s linear infinite}
+@keyframes k3{0%,3.834%{transform:translateX(0)}13.293%,100%{transform:translateX(403.20px)}}.k3{animation:k3 20.868s steps(48,end) infinite}
+@keyframes k4{0%,2.396%{opacity:0}2.492%,15.689%{opacity:1}15.785%,100%{opacity:0}}.k4{opacity:0;animation:k4 20.868s linear infinite}
+@keyframes k5{0%,3.834%{transform:translateX(0)}13.293%,100%{transform:translateX(394.80px)}}.k5{animation:k5 20.868s steps(47,end) infinite}
+@keyframes k6{0%,20.002%{opacity:0}20.289%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k6{opacity:0;animation:k6 20.868s linear infinite}
+@keyframes k7{0%,20.433%{opacity:0}20.721%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k7{opacity:0;animation:k7 20.868s linear infinite}
+@keyframes k8{0%,20.864%{opacity:0}21.152%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k8{opacity:0;animation:k8 20.868s linear infinite}
+@keyframes k9{0%,31.167%{opacity:0}31.407%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k9{opacity:0;animation:k9 20.868s linear infinite}
+@keyframes k10{0%,32.605%{transform:translateX(0)}38.442%,100%{transform:translateX(252.00px)}}.k10{animation:k10 20.868s steps(30,end) infinite}
+@keyframes k11{0%,31.167%{opacity:0}31.263%,40.838%{opacity:1}40.933%,100%{opacity:0}}.k11{opacity:0;animation:k11 20.868s linear infinite}
+@keyframes k12{0%,32.605%{transform:translateX(0)}38.442%,100%{transform:translateX(243.60px)}}.k12{animation:k12 20.868s steps(29,end) infinite}
+@keyframes k13{0%,43.713%{opacity:0}44.000%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k13{opacity:0;animation:k13 20.868s linear infinite}
+@keyframes k14{0%,44.144%{opacity:0}44.432%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k14{opacity:0;animation:k14 20.868s linear infinite}
+@keyframes k15{0%,44.575%{opacity:0}44.863%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k15{opacity:0;animation:k15 20.868s linear infinite}
+@keyframes k16{0%,45.007%{opacity:0}45.294%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k16{opacity:0;animation:k16 20.868s linear infinite}
+@keyframes k17{0%,45.438%{opacity:0}45.726%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k17{opacity:0;animation:k17 20.868s linear infinite}
+@keyframes k18{0%,45.869%{opacity:0}46.157%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k18{opacity:0;animation:k18 20.868s linear infinite}
+@keyframes k19{0%,56.172%{opacity:0}56.412%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k19{opacity:0;animation:k19 20.868s linear infinite}
+@keyframes k20{0%,57.610%{transform:translateX(0)}71.296%,100%{transform:translateX(579.60px)}}.k20{animation:k20 20.868s steps(69,end) infinite}
+@keyframes k21{0%,56.172%{opacity:0}56.268%,73.692%{opacity:1}73.788%,100%{opacity:0}}.k21{opacity:0;animation:k21 20.868s linear infinite}
+@keyframes k22{0%,57.610%{transform:translateX(0)}71.296%,100%{transform:translateX(571.20px)}}.k22{animation:k22 20.868s steps(68,end) infinite}
+@keyframes k23{0%,76.088%{opacity:0}76.375%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k23{opacity:0;animation:k23 20.868s linear infinite}
+@keyframes k24{0%,76.519%{opacity:0}76.807%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k24{opacity:0;animation:k24 20.868s linear infinite}
+@keyframes k25{0%,76.950%{opacity:0}77.238%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k25{opacity:0;animation:k25 20.868s linear infinite}
+@keyframes k26{0%,77.382%{opacity:0}77.669%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k26{opacity:0;animation:k26 20.868s linear infinite}
+@keyframes k27{0%,77.813%{opacity:0}78.100%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k27{opacity:0;animation:k27 20.868s linear infinite}
+@keyframes k28{0%,78.244%{opacity:0}78.532%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k28{opacity:0;animation:k28 20.868s linear infinite}
+@keyframes k29{0%,78.675%{opacity:0}78.963%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k29{opacity:0;animation:k29 20.868s linear infinite}
+@keyframes k30{0%,90.416%{opacity:0}90.656%,97.604%{opacity:1}100.000%,100%{opacity:0}}.k30{opacity:0;animation:k30 20.868s linear infinite}
+@keyframes blink{0%,49%{opacity:.85}50%,100%{opacity:0}}.blink{animation:blink 1s steps(1) infinite}
+</style>
+<defs><clipPath id="body"><rect x="0" y="44" width="920" height="456"/></clipPath></defs>
+<rect width="920" height="500" rx="18" fill="#0b0d12"/><rect x="0.5" y="0.5" width="919" height="499" rx="17.5" fill="none" stroke="#262b38"/>
+<path d="M0.5,44 H919.5" stroke="#262b38"/>
+<circle cx="24" cy="22" r="6" fill="#ff5f57"/>
+<circle cx="44" cy="22" r="6" fill="#febc2e"/>
+<circle cx="64" cy="22" r="6" fill="#28c840"/>
+<text x="460.0" y="27" class="sans" font-size="13" fill="#8a92a6" text-anchor="middle">afm — zsh</text>
+<g clip-path="url(#body)"><g class="k1">
+<g class="k2"><text x="26" y="72" class="mono" font-size="14" fill="#5be37d" xml:space="preserve">~ ❯ </text><text x="59.6" y="72" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="394.80" lengthAdjust="spacingAndGlyphs">afm --tool calculator &quot;What is 17.5% of 2,340?&quot;</text><rect class="k3" x="59.6" y="57" width="920" height="21" fill="#0b0d12"/><g class="k4"><rect class="k5" x="59.6" y="58" width="8.4" height="18" fill="#e8eaf0" opacity=".85"/></g></g>
+<g class="k6"><text x="26" y="93" class="mono" font-size="14" fill="#ffb340" xml:space="preserve" textLength="285.60" lengthAdjust="spacingAndGlyphs">  ⚙︎ calculator(17.5 * 2340 / 100)</text></g>
+<g class="k7"><text x="26" y="114" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="42.00" lengthAdjust="spacingAndGlyphs">409.5</text></g>
+<g class="k8"><text x="26" y="135" class="mono" font-size="14" fill="#4a5163" xml:space="preserve" textLength="504.00" lengthAdjust="spacingAndGlyphs">2.10s · 17 in · 6 out · tools: calculator(17.5 * 2340 / 100)</text></g>
+<g class="k9"><text x="26" y="177" class="mono" font-size="14" fill="#5be37d" xml:space="preserve">~ ❯ </text><text x="59.6" y="177" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="243.60" lengthAdjust="spacingAndGlyphs">afm run sentiment &lt; email.txt</text><rect class="k10" x="59.6" y="162" width="920" height="21" fill="#0b0d12"/><g class="k11"><rect class="k12" x="59.6" y="163" width="8.4" height="18" fill="#e8eaf0" opacity=".85"/></g></g>
+<g class="k13"><text x="26" y="198" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="8.40" lengthAdjust="spacingAndGlyphs">{</text></g>
+<g class="k14"><text x="42.80" y="219" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="92.40" lengthAdjust="spacingAndGlyphs">&quot;sentiment&quot;</text><text x="135.20" y="219" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="152.00" y="219" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="67.20" lengthAdjust="spacingAndGlyphs">&quot;mixed&quot;,</text></g>
+<g class="k15"><text x="42.80" y="240" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="100.80" lengthAdjust="spacingAndGlyphs">&quot;confidence&quot;</text><text x="143.60" y="240" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="160.40" y="240" class="mono" font-size="14" fill="#ffb340" xml:space="preserve" textLength="33.60" lengthAdjust="spacingAndGlyphs">0.6,</text></g>
+<g class="k16"><text x="42.80" y="261" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="67.20" lengthAdjust="spacingAndGlyphs">&quot;reason&quot;</text><text x="110.00" y="261" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="126.80" y="261" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="453.60" lengthAdjust="spacingAndGlyphs">&quot;Compliments on turnaround offset by delivery issues.&quot;</text></g>
+<g class="k17"><text x="26" y="282" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="8.40" lengthAdjust="spacingAndGlyphs">}</text></g>
+<g class="k18"><text x="26" y="303" class="mono" font-size="14" fill="#4a5163" xml:space="preserve" textLength="294.00" lengthAdjust="spacingAndGlyphs">1.46s · 70 in · 37 out · 25.3 tok/s</text></g>
+<g class="k19"><text x="26" y="345" class="mono" font-size="14" fill="#5be37d" xml:space="preserve">~ ❯ </text><text x="59.6" y="345" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="571.20" lengthAdjust="spacingAndGlyphs">afm extract --fields &quot;customer, city, request, deadline&quot; &lt; email.txt</text><rect class="k20" x="59.6" y="330" width="920" height="21" fill="#0b0d12"/><g class="k21"><rect class="k22" x="59.6" y="331" width="8.4" height="18" fill="#e8eaf0" opacity=".85"/></g></g>
+<g class="k23"><text x="26" y="366" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="8.40" lengthAdjust="spacingAndGlyphs">{</text></g>
+<g class="k24"><text x="42.80" y="387" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="84.00" lengthAdjust="spacingAndGlyphs">&quot;customer&quot;</text><text x="126.80" y="387" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="143.60" y="387" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="142.80" lengthAdjust="spacingAndGlyphs">&quot;Dana Whitfield&quot;,</text></g>
+<g class="k25"><text x="42.80" y="408" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="50.40" lengthAdjust="spacingAndGlyphs">&quot;city&quot;</text><text x="93.20" y="408" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="110.00" y="408" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="75.60" lengthAdjust="spacingAndGlyphs">&quot;Austin&quot;,</text></g>
+<g class="k26"><text x="42.80" y="429" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="75.60" lengthAdjust="spacingAndGlyphs">&quot;request&quot;</text><text x="118.40" y="429" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="135.20" y="429" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="428.40" lengthAdjust="spacingAndGlyphs">&quot;send a replacement for the cracked monitor stand&quot;,</text></g>
+<g class="k27"><text x="42.80" y="450" class="mono" font-size="14" fill="#5ac8fa" xml:space="preserve" textLength="84.00" lengthAdjust="spacingAndGlyphs">&quot;deadline&quot;</text><text x="126.80" y="450" class="mono" font-size="14" fill="#8a92a6" xml:space="preserve" textLength="16.80" lengthAdjust="spacingAndGlyphs">: </text><text x="143.60" y="450" class="mono" font-size="14" fill="#5be37d" xml:space="preserve" textLength="67.20" lengthAdjust="spacingAndGlyphs">&quot;Friday&quot;</text></g>
+<g class="k28"><text x="26" y="471" class="mono" font-size="14" fill="#e8eaf0" xml:space="preserve" textLength="8.40" lengthAdjust="spacingAndGlyphs">}</text></g>
+<g class="k29"><text x="26" y="492" class="mono" font-size="14" fill="#4a5163" xml:space="preserve" textLength="294.00" lengthAdjust="spacingAndGlyphs">1.25s · 71 in · 45 out · 36.0 tok/s</text></g>
+<g class="k30"><text x="26" y="534" class="mono" font-size="14" fill="#5be37d" xml:space="preserve">~ ❯ </text><rect class="blink" x="59.6" y="520" width="8.4" height="18" fill="#e8eaf0" opacity=".85"/></g>
+</g></g>
+</svg>

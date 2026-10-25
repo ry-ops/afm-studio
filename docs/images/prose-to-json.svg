@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="490" viewBox="0 0 1240 490" role="img" aria-labelledby="t d">
+<title id="t">Prose to JSON</title>
+<desc id="d">An email on the left. Each extracted field lights up its source words, which flow into a JSON object on the right: customer Dana Whitfield, city Austin, request, deadline Friday.</desc>
+<style>
+.sans{font-family:ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif}
+.mono{font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}
+@media (prefers-reduced-motion: reduce){*{animation-duration:0s!important;animation-delay:0s!important}}
+@keyframes k1{0%,10.959%{opacity:0}13.014%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k1{opacity:0;animation:k1 14.6s linear infinite}
+@keyframes k2{0%,25.342%{opacity:0}27.397%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k2{opacity:0;animation:k2 14.6s linear infinite}
+@keyframes k3{0%,39.726%{opacity:0}41.781%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k3{opacity:0;animation:k3 14.6s linear infinite}
+@keyframes k4{0%,39.726%{opacity:0}41.781%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k4{opacity:0;animation:k4 14.6s linear infinite}
+@keyframes k5{0%,54.110%{opacity:0}56.164%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k5{opacity:0;animation:k5 14.6s linear infinite}
+@keyframes k6{0%,7.534%{opacity:0}8.904%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k6{opacity:0;animation:k6 14.6s linear infinite}
+@keyframes k7{0%,13.014%{opacity:0}14.384%,20.548%{opacity:1}21.918%,100%{opacity:0}}.k7{opacity:0;animation:k7 14.6s linear infinite}
+@keyframes k8{0%,13.014%{opacity:0}13.562%,19.178%{opacity:1}19.726%,100%{opacity:0}}.k8{opacity:0;animation:k8 14.6s linear infinite}
+@keyframes k9{0%,18.836%{opacity:0}19.178%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k9{opacity:0;animation:k9 14.6s linear infinite}
+@keyframes k10{0%,18.836%{transform:translateX(0)}21.384%,100%{transform:translateX(256.00px)}}.k10{animation:k10 14.6s steps(10,end) infinite}
+@keyframes k11{0%,10.959%{opacity:0}13.014%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k11{opacity:0;animation:k11 14.6s linear infinite}
+@keyframes k12{0%,27.397%{opacity:0}28.767%,34.932%{opacity:1}36.301%,100%{opacity:0}}.k12{opacity:0;animation:k12 14.6s linear infinite}
+@keyframes k13{0%,27.397%{opacity:0}27.945%,33.562%{opacity:1}34.110%,100%{opacity:0}}.k13{opacity:0;animation:k13 14.6s linear infinite}
+@keyframes k14{0%,33.219%{opacity:0}33.562%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k14{opacity:0;animation:k14 14.6s linear infinite}
+@keyframes k15{0%,33.219%{transform:translateX(0)}34.781%,100%{transform:translateX(160.00px)}}.k15{animation:k15 14.6s steps(6,end) infinite}
+@keyframes k16{0%,25.342%{opacity:0}27.397%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k16{opacity:0;animation:k16 14.6s linear infinite}
+@keyframes k17{0%,41.781%{opacity:0}43.151%,49.315%{opacity:1}50.685%,100%{opacity:0}}.k17{opacity:0;animation:k17 14.6s linear infinite}
+@keyframes k18{0%,41.781%{opacity:0}42.329%,47.945%{opacity:1}48.493%,100%{opacity:0}}.k18{opacity:0;animation:k18 14.6s linear infinite}
+@keyframes k19{0%,47.603%{opacity:0}47.945%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k19{opacity:0;animation:k19 14.6s linear infinite}
+@keyframes k20{0%,47.603%{transform:translateX(0)}52.863%,100%{transform:translateX(520.00px)}}.k20{animation:k20 14.6s steps(21,end) infinite}
+@keyframes k21{0%,39.726%{opacity:0}41.781%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k21{opacity:0;animation:k21 14.6s linear infinite}
+@keyframes k22{0%,56.164%{opacity:0}57.534%,63.699%{opacity:1}65.068%,100%{opacity:0}}.k22{opacity:0;animation:k22 14.6s linear infinite}
+@keyframes k23{0%,56.164%{opacity:0}56.712%,62.329%{opacity:1}62.877%,100%{opacity:0}}.k23{opacity:0;animation:k23 14.6s linear infinite}
+@keyframes k24{0%,61.986%{opacity:0}62.329%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k24{opacity:0;animation:k24 14.6s linear infinite}
+@keyframes k25{0%,61.986%{transform:translateX(0)}63.795%,100%{transform:translateX(184.00px)}}.k25{animation:k25 14.6s steps(7,end) infinite}
+@keyframes k26{0%,54.110%{opacity:0}56.164%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k26{opacity:0;animation:k26 14.6s linear infinite}
+@keyframes k27{0%,68.493%{opacity:0}69.863%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k27{opacity:0;animation:k27 14.6s linear infinite}
+@keyframes k28{0%,71.233%{opacity:0}73.288%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k28{opacity:0;animation:k28 14.6s linear infinite}
+@keyframes k29{0%,10.959%{opacity:0}13.014%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k29{opacity:0;animation:k29 14.6s linear infinite}
+@keyframes k30{0%,25.342%{opacity:0}27.397%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k30{opacity:0;animation:k30 14.6s linear infinite}
+@keyframes k31{0%,39.726%{opacity:0}41.781%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k31{opacity:0;animation:k31 14.6s linear infinite}
+@keyframes k32{0%,54.110%{opacity:0}56.164%,95.890%{opacity:1}100.000%,100%{opacity:0}}.k32{opacity:0;animation:k32 14.6s linear infinite}
+</style>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0.00" stop-color="#5ac8fa"/><stop offset="0.33" stop-color="#7d7aff"/><stop offset="0.67" stop-color="#ff6fae"/><stop offset="1.00" stop-color="#ffb340"/></linearGradient><clipPath id="jp"><rect x="641" y="113" width="566" height="338" rx="13"/></clipPath></defs>
+<rect width="1240" height="490" rx="18" fill="#0b0d12"/><rect x="0.5" y="0.5" width="1239" height="489" rx="17.5" fill="none" stroke="#262b38"/>
+<text x="52" y="58" class="sans" font-size="26" font-weight="700" fill="#e8eaf0">Prose in, typed JSON out</text>
+<text x="52" y="88" class="sans" font-size="15.5" fill="#8a92a6">Guided generation: the model can only write JSON that fits your fields. It never leaves your Mac.</text>
+<rect x="32" y="112" width="568" height="340" rx="14" fill="#12151d" stroke="#262b38"/>
+<text x="52" y="134" class="mono" font-size="12.5" fill="#8a92a6">email.txt</text>
+<rect x="640" y="112" width="568" height="340" rx="14" fill="#12151d" stroke="#262b38"/>
+<text x="660" y="134" class="mono" font-size="12.5" fill="#8a92a6">afm extract --fields &quot;customer, city, request, deadline&quot;</text>
+<rect class="k1" x="368.0" y="279" width="132.0" height="24" rx="5" fill="#5ac8fa" fill-opacity=".22" stroke="#5ac8fa" stroke-opacity=".7"/>
+<rect class="k2" x="413.0" y="195" width="60.0" height="24" rx="5" fill="#ffb340" fill-opacity=".22" stroke="#ffb340" stroke-opacity=".7"/>
+<rect class="k3" x="206.0" y="251" width="240.0" height="24" rx="5" fill="#ff6fae" fill-opacity=".22" stroke="#ff6fae" stroke-opacity=".7"/>
+<rect class="k4" x="53.0" y="279" width="195.0" height="24" rx="5" fill="#ff6fae" fill-opacity=".22" stroke="#ff6fae" stroke-opacity=".7"/>
+<rect class="k5" x="278.0" y="279" width="60.0" height="24" rx="5" fill="#5be37d" fill-opacity=".22" stroke="#5be37d" stroke-opacity=".7"/>
+<text x="56" y="184" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="423.00" lengthAdjust="spacingAndGlyphs">Thanks for the quick turnaround on the invoice!</text>
+<text x="56" y="212" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="414.00" lengthAdjust="spacingAndGlyphs">One thing: the March 14 delivery to our Austin</text>
+<text x="56" y="240" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="405.00" lengthAdjust="spacingAndGlyphs">office arrived two days late, and the box was</text>
+<text x="56" y="268" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="387.00" lengthAdjust="spacingAndGlyphs">crushed. Can you send a replacement for the</text>
+<text x="56" y="296" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="450.00" lengthAdjust="spacingAndGlyphs">cracked monitor stand by Friday? — Dana Whitfield,</text>
+<text x="56" y="324" class="mono" font-size="15" fill="#e8eaf0" xml:space="preserve" textLength="144.00" lengthAdjust="spacingAndGlyphs">Northwind Supply</text>
+<text class="mono k6" x="668" y="168" font-size="14" fill="#e8eaf0">{</text>
+<path id="f0" d="M434,291 C694,231 498,233 698,193" fill="none" stroke="#5ac8fa" stroke-opacity="0" stroke-width="1.5"/>
+<path class="k7" d="M434,291 C694,231 498,233 698,193" fill="none" stroke="#5ac8fa" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="3 5"/>
+<g class="k8"><circle r="11" fill="#5ac8fa" opacity=".2"/><circle r="5" fill="#5ac8fa"/><animateMotion dur="14.6s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.1301;0.1918;1" calcMode="linear"><mpath href="#f0"/></animateMotion></g>
+<g class="k9" clip-path="url(#jp)"><text x="684.00" y="198" class="mono" font-size="13.4" fill="#5ac8fa" xml:space="preserve" textLength="80.00" lengthAdjust="spacingAndGlyphs">&quot;customer&quot;</text><text x="764.00" y="198" class="mono" font-size="13.4" fill="#8a92a6" xml:space="preserve" textLength="16.00" lengthAdjust="spacingAndGlyphs">: </text><text x="780.00" y="198" class="mono" font-size="13.4" fill="#5be37d" xml:space="preserve" textLength="136.00" lengthAdjust="spacingAndGlyphs">&quot;Dana Whitfield&quot;,</text><rect class="k10" x="668" y="182" width="268.0" height="24" fill="#12151d"/></g>
+<path id="f1" d="M443,207 C703,147 498,263 698,223" fill="none" stroke="#ffb340" stroke-opacity="0" stroke-width="1.5"/>
+<path class="k12" d="M443,207 C703,147 498,263 698,223" fill="none" stroke="#ffb340" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="3 5"/>
+<g class="k13"><circle r="11" fill="#ffb340" opacity=".2"/><circle r="5" fill="#ffb340"/><animateMotion dur="14.6s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.2740;0.3356;1" calcMode="linear"><mpath href="#f1"/></animateMotion></g>
+<g class="k14" clip-path="url(#jp)"><text x="684.00" y="228" class="mono" font-size="13.4" fill="#5ac8fa" xml:space="preserve" textLength="48.00" lengthAdjust="spacingAndGlyphs">&quot;city&quot;</text><text x="732.00" y="228" class="mono" font-size="13.4" fill="#8a92a6" xml:space="preserve" textLength="16.00" lengthAdjust="spacingAndGlyphs">: </text><text x="748.00" y="228" class="mono" font-size="13.4" fill="#5be37d" xml:space="preserve" textLength="72.00" lengthAdjust="spacingAndGlyphs">&quot;Austin&quot;,</text><rect class="k15" x="668" y="212" width="172.0" height="24" fill="#12151d"/></g>
+<path id="f2" d="M326,263 C586,203 498,293 698,253" fill="none" stroke="#ff6fae" stroke-opacity="0" stroke-width="1.5"/>
+<path class="k17" d="M326,263 C586,203 498,293 698,253" fill="none" stroke="#ff6fae" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="3 5"/>
+<g class="k18"><circle r="11" fill="#ff6fae" opacity=".2"/><circle r="5" fill="#ff6fae"/><animateMotion dur="14.6s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.4178;0.4795;1" calcMode="linear"><mpath href="#f2"/></animateMotion></g>
+<g class="k19" clip-path="url(#jp)"><text x="684.00" y="258" class="mono" font-size="13.4" fill="#5ac8fa" xml:space="preserve" textLength="72.00" lengthAdjust="spacingAndGlyphs">&quot;request&quot;</text><text x="756.00" y="258" class="mono" font-size="13.4" fill="#8a92a6" xml:space="preserve" textLength="16.00" lengthAdjust="spacingAndGlyphs">: </text><text x="772.00" y="258" class="mono" font-size="13.4" fill="#5be37d" xml:space="preserve" textLength="408.00" lengthAdjust="spacingAndGlyphs">&quot;send a replacement for the cracked monitor stand&quot;,</text><rect class="k20" x="668" y="242" width="532.0" height="24" fill="#12151d"/></g>
+<path id="f3" d="M308,291 C568,231 498,323 698,283" fill="none" stroke="#5be37d" stroke-opacity="0" stroke-width="1.5"/>
+<path class="k22" d="M308,291 C568,231 498,323 698,283" fill="none" stroke="#5be37d" stroke-opacity=".35" stroke-width="1.5" stroke-dasharray="3 5"/>
+<g class="k23"><circle r="11" fill="#5be37d" opacity=".2"/><circle r="5" fill="#5be37d"/><animateMotion dur="14.6s" repeatCount="indefinite" keyPoints="0;0;1;1" keyTimes="0;0.5616;0.6233;1" calcMode="linear"><mpath href="#f3"/></animateMotion></g>
+<g class="k24" clip-path="url(#jp)"><text x="684.00" y="288" class="mono" font-size="13.4" fill="#5ac8fa" xml:space="preserve" textLength="80.00" lengthAdjust="spacingAndGlyphs">&quot;deadline&quot;</text><text x="764.00" y="288" class="mono" font-size="13.4" fill="#8a92a6" xml:space="preserve" textLength="16.00" lengthAdjust="spacingAndGlyphs">: </text><text x="780.00" y="288" class="mono" font-size="13.4" fill="#5be37d" xml:space="preserve" textLength="64.00" lengthAdjust="spacingAndGlyphs">&quot;Friday&quot;</text><rect class="k25" x="668" y="272" width="196.0" height="24" fill="#12151d"/></g>
+<text class="mono k27" x="668" y="318" font-size="14" fill="#e8eaf0">}</text>
+<g class="k28"><text x="668" y="354" class="mono" font-size="13" fill="#8a92a6">1.25s · 71 in · 45 out · 36.0 tok/s · on device</text></g>
+<rect x="668" y="408" width="89" height="28" rx="14" fill="none" stroke="#4a5163"/>
+<rect class="k29" x="668" y="408" width="89" height="28" rx="14" fill="#5ac8fa" fill-opacity=".18" stroke="#5ac8fa"/>
+<text x="713" y="427" class="mono" font-size="13" fill="#e8eaf0" text-anchor="middle">customer</text>
+<rect x="767.2" y="408" width="56" height="28" rx="14" fill="none" stroke="#4a5163"/>
+<rect class="k30" x="767.2" y="408" width="56" height="28" rx="14" fill="#ffb340" fill-opacity=".18" stroke="#ffb340"/>
+<text x="795" y="427" class="mono" font-size="13" fill="#e8eaf0" text-anchor="middle">city</text>
+<rect x="832.8000000000001" y="408" width="81" height="28" rx="14" fill="none" stroke="#4a5163"/>
+<rect class="k31" x="832.8000000000001" y="408" width="81" height="28" rx="14" fill="#ff6fae" fill-opacity=".18" stroke="#ff6fae"/>
+<text x="873" y="427" class="mono" font-size="13" fill="#e8eaf0" text-anchor="middle">request</text>
+<rect x="923.6000000000001" y="408" width="89" height="28" rx="14" fill="none" stroke="#4a5163"/>
+<rect class="k32" x="923.6000000000001" y="408" width="89" height="28" rx="14" fill="#5be37d" fill-opacity=".18" stroke="#5be37d"/>
+<text x="968" y="427" class="mono" font-size="13" fill="#e8eaf0" text-anchor="middle">deadline</text>
+</svg>

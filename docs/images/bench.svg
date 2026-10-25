@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="470" viewBox="0 0 1240 470" role="img" aria-labelledby="t d">
+<title id="t">afm bench</title>
+<desc id="d">Five benchmark tasks drawn at their real speed on an Apple M1: about half a second to the first token, then 41 tokens per second.</desc>
+<style>
+.sans{font-family:ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Helvetica, Arial, sans-serif}
+.mono{font-family:ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace}
+@media (prefers-reduced-motion: reduce){*{animation-duration:0s!important;animation-delay:0s!important}}
+@keyframes k1{0%,11.173%{transform:scaleX(0)}15.307%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k1{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k1 8.95s linear infinite}
+@keyframes k2{0%,15.307%{opacity:0}18.101%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k2{opacity:0;animation:k2 8.95s linear infinite}
+@keyframes k3{0%,11.173%{transform:scaleX(0)}16.536%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k3{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k3 8.95s linear infinite}
+@keyframes k4{0%,16.536%{transform:scaleX(0)}49.721%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k4{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k4 8.95s linear infinite}
+@keyframes k5{0%,49.721%{opacity:0}52.514%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k5{opacity:0;animation:k5 8.95s linear infinite}
+@keyframes k6{0%,11.173%{transform:scaleX(0)}17.095%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k6{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k6 8.95s linear infinite}
+@keyframes k7{0%,17.095%{transform:scaleX(0)}43.575%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k7{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k7 8.95s linear infinite}
+@keyframes k8{0%,43.575%{opacity:0}46.369%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k8{opacity:0;animation:k8 8.95s linear infinite}
+@keyframes k9{0%,11.173%{transform:scaleX(0)}16.872%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k9{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k9 8.95s linear infinite}
+@keyframes k10{0%,16.872%{transform:scaleX(0)}19.218%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k10{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k10 8.95s linear infinite}
+@keyframes k11{0%,19.218%{opacity:0}22.011%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k11{opacity:0;animation:k11 8.95s linear infinite}
+@keyframes k12{0%,11.173%{transform:scaleX(0)}16.648%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k12{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k12 8.95s linear infinite}
+@keyframes k13{0%,16.648%{transform:scaleX(0)}39.777%,93.296%{transform:scaleX(1)}100%{transform:scaleX(1)}}.k13{transform-box:fill-box;transform-origin:0 50%;transform:scaleX(0);animation:k13 8.95s linear infinite}
+@keyframes k14{0%,39.777%{opacity:0}42.570%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k14{opacity:0;animation:k14 8.95s linear infinite}
+@keyframes k15{0%,53.073%{opacity:0}56.425%,93.296%{opacity:1}100.000%,100%{opacity:0}}.k15{opacity:0;animation:k15 8.95s linear infinite}
+</style>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="0"><stop offset="0.00" stop-color="#5ac8fa"/><stop offset="0.33" stop-color="#7d7aff"/><stop offset="0.67" stop-color="#ff6fae"/><stop offset="1.00" stop-color="#ffb340"/></linearGradient><linearGradient id="gen" x1="0" y1="0" x2="1" y2="0"><stop offset="0.00" stop-color="#7d7aff"/><stop offset="1.00" stop-color="#5ac8fa"/></linearGradient></defs>
+<rect width="1240" height="470" rx="18" fill="#0b0d12"/><rect x="0.5" y="0.5" width="1239" height="469" rx="17.5" fill="none" stroke="#262b38"/>
+<text x="52" y="58" class="sans" font-size="26" font-weight="700" fill="#e8eaf0">afm bench, in real time</text>
+<text x="52" y="88" class="sans" font-size="15.5" fill="#8a92a6">Apple M1 · macOS 27 · greedy sampling. Each bar runs at the speed it really took.</text>
+<path d="M230,128 V392" stroke="#262b38" stroke-dasharray="2 5"/>
+<text x="230" y="120" class="mono" font-size="12" fill="#4a5163" text-anchor="middle">0s</text>
+<path d="M440,128 V392" stroke="#262b38" stroke-dasharray="2 5"/>
+<text x="440" y="120" class="mono" font-size="12" fill="#4a5163" text-anchor="middle">1s</text>
+<path d="M650,128 V392" stroke="#262b38" stroke-dasharray="2 5"/>
+<text x="650" y="120" class="mono" font-size="12" fill="#4a5163" text-anchor="middle">2s</text>
+<path d="M860,128 V392" stroke="#262b38" stroke-dasharray="2 5"/>
+<text x="860" y="120" class="mono" font-size="12" fill="#4a5163" text-anchor="middle">3s</text>
+<path d="M1070,128 V392" stroke="#262b38" stroke-dasharray="2 5"/>
+<text x="1070" y="120" class="mono" font-size="12" fill="#4a5163" text-anchor="middle">4s</text>
+<text x="208" y="155" class="sans" font-size="15" fill="#e8eaf0" text-anchor="end">Short answer</text>
+<rect x="230" y="138" width="77.7" height="24" rx="6" fill="#12151d"/>
+<rect class="k1" x="230" y="138" width="77.7" height="24" rx="6" fill="#ffb340" fill-opacity=".85"/>
+<g class="k2"><text x="321.7" y="155" class="mono" font-size="13.5" fill="#e8eaf0">2 tokens</text><text x="395.5" y="155" class="mono" font-size="13.5" fill="#8a92a6">· too short to time</text></g>
+<text x="208" y="207" class="sans" font-size="15" fill="#e8eaf0" text-anchor="end">Paragraph</text>
+<rect x="230" y="190" width="724.5" height="24" rx="6" fill="#12151d"/>
+<rect class="k3" x="230" y="190" width="100.8" height="24" rx="6" fill="#ffb340" fill-opacity=".85"/>
+<rect class="k4" x="330.8" y="190" width="623.7" height="24" rx="6" fill="url(#gen)"/>
+<g class="k5"><text x="968.5" y="207" class="mono" font-size="13.5" fill="#e8eaf0">103 tokens</text><text x="1058.7" y="207" class="mono" font-size="13.5" fill="#8a92a6">· 34.3 tok/s</text></g>
+<text x="208" y="259" class="sans" font-size="15" fill="#e8eaf0" text-anchor="end">List</text>
+<rect x="230" y="242" width="609.0" height="24" rx="6" fill="#12151d"/>
+<rect class="k6" x="230" y="242" width="111.3" height="24" rx="6" fill="#ffb340" fill-opacity=".85"/>
+<rect class="k7" x="341.3" y="242" width="497.7" height="24" rx="6" fill="url(#gen)"/>
+<g class="k8"><text x="853.0" y="259" class="mono" font-size="13.5" fill="#e8eaf0">89 tokens</text><text x="935.0" y="259" class="mono" font-size="13.5" fill="#8a92a6">· 37.1 tok/s</text></g>
+<text x="208" y="311" class="sans" font-size="15" fill="#e8eaf0" text-anchor="end">Rewrite</text>
+<rect x="230" y="294" width="151.2" height="24" rx="6" fill="#12151d"/>
+<rect class="k9" x="230" y="294" width="107.1" height="24" rx="6" fill="#ffb340" fill-opacity=".85"/>
+<rect class="k10" x="337.1" y="294" width="44.1" height="24" rx="6" fill="url(#gen)"/>
+<g class="k11"><text x="395.2" y="311" class="mono" font-size="13.5" fill="#e8eaf0">16 tokens</text><text x="477.2" y="311" class="mono" font-size="13.5" fill="#8a92a6">· 71.4 tok/s</text></g>
+<text x="208" y="363" class="sans" font-size="15" fill="#e8eaf0" text-anchor="end">Reasoning</text>
+<rect x="230" y="346" width="537.6" height="24" rx="6" fill="#12151d"/>
+<rect class="k12" x="230" y="346" width="102.9" height="24" rx="6" fill="#ffb340" fill-opacity=".85"/>
+<rect class="k13" x="332.9" y="346" width="434.7" height="24" rx="6" fill="url(#gen)"/>
+<g class="k14"><text x="781.6" y="363" class="mono" font-size="13.5" fill="#e8eaf0">107 tokens</text><text x="871.8" y="363" class="mono" font-size="13.5" fill="#8a92a6">· 51.2 tok/s</text></g>
+<rect x="52" y="414" width="16" height="16" rx="4" fill="#ffb340"/><text x="76" y="427" class="sans" font-size="14" fill="#8a92a6">waiting for the first token</text>
+<rect x="290" y="414" width="16" height="16" rx="4" fill="url(#gen)"/><text x="314" y="427" class="sans" font-size="14" fill="#8a92a6">generating</text>
+<g class="k15"><text x="1188" y="427" class="sans" font-size="16" font-weight="600" fill="url(#g)" text-anchor="end">median first token 0.49s · decode speed 40.8 tok/s</text></g>
+</svg>
