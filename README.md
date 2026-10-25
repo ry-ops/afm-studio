@@ -43,7 +43,7 @@ bash ~/Projects/afm-studio/scripts/install.sh     # CLI only: links afm into ~/.
 
 If you can't write to `/Applications`, `--install` uses `~/Applications` instead. An older copy in `~/Applications` goes to the Trash, and a running copy is quit first.
 
-The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
+The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. On launch, a copy installed in `/Applications` or `~/Applications` links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. A copy opened from anywhere else, such as the build folder or a download, leaves them alone. You can turn the Claude registration off in the Claude section.
 
 ### Keep Keychain approvals across rebuilds
 
