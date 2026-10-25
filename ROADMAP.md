@@ -25,7 +25,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### GitHub search fails with "Validation Failed" for questions about your orgs
 
-**Status.** Fixed on the `fix/github-chat-tools` branch, not yet released.
+**Status.** Fixed in 0.2.3.
 
 **What was wrong.** Asking "what open PRs do I have across my repos and my orgs?" failed with "Tool github_search failed: GitHub: Validation Failed," or answered "none" from the wrong tool.
 
@@ -48,6 +48,40 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 | PRs I opened, reviews waiting on me | | Right tool every time. 1 run overflowed context before the cap, 1 later run read PRs it didn't need |
 
 **Known limits.** The model still slips sometimes. One run said 199 when the tool said 192. Another added up the org count wrongly, which is why the summary now gives the split ready-made. One listed Dependabot's PRs as yours after the tool said you had none. The numbers it's given are right, so the answers are worth checking against the tool call. Old answers also anchor it. In a chat that began before this fix, its earlier "no open PRs" answer stayed in the history, and the model repeated it in 3 of 3 replays even though the new tool returned 193. In fresh chats, with the same instructions and tools, it reported the right totals in 9 of 9. Start a new chat after a fix like this.
+
+### New chats don't get integration tools
+
+**Status.** Fixed in 0.2.3.
+
+**What was wrong.** With GitHub's **Tools in chat** switch on, a new chat still answered "I don't have access to your repositories." Its GitHub toggle in the side panel started off, so the model never got the GitHub tools.
+
+**Fix.** New chats, in the app and in `afm chat`, start with every integration whose chat tools are on. The per-chat toggle still turns one off.
+
+### Long messages fail with "Provided 24,025 tokens, but the maximum allowed is 4,096"
+
+**Status.** Fixed in 0.2.3.
+
+**What was wrong.** Pasting a long transcript into chat failed, and the message vanished back into the input box. Two causes:
+
+- **Every chat sent its first message twice.** Starting a session rebuilt the history from saved messages, including the one being sent, then sent it again as the prompt. In a new chat, a 2,175-token message came to 4,777 tokens and failed.
+- **The chat had no way to read a message bigger than the context.** Recipes split long documents, but chat sent everything as one prompt.
+
+**Fix.**
+
+- **The pending message is left out of the rebuilt history**, so it's sent once.
+- **A message that doesn't fit is read in parts.** The model first states the request in one sentence from the start and end of the message. Then it takes notes of up to 120 words on each part, combines them only if they still don't fit, and answers from the notes. The chat shows progress. The message keeps the original text for display and saves the notes, so follow-up questions rebuild from the notes.
+- **The answer is capped at the room left in the context**, so a long answer stops cleanly instead of failing partway through.
+
+**Tested.** Live runs on the on-device model, with transcripts built from this README and roadmap:
+
+| Input | Before | After |
+| --- | --- | --- |
+| 2,175-token message, new chat | Failed: 4,777 tokens | Answered |
+| 10,451-token transcript | Failed | 5 parts, highlights across the whole text, about 1.5 minutes |
+| 20,893-token transcript | Failed | 9 parts, highlights across the whole text, about 3 minutes |
+| Follow-up in that chat | | Answered from the saved notes: "macOS 27.1 or later, no Xcode app" |
+
+**Known limits.** The model often makes one pointless calculator call before answering, because the notes contain numbers. Quoting the end of the message directly made it summarize only the end, which is why the request is worked out first.
 
 ## 1. Self-update from GitHub
 
