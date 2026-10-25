@@ -61,9 +61,18 @@ public final class ToolCallTracker: @unchecked Sendable {
     public var onCall: (@Sendable (String) -> Void)?
     public init(onCall: (@Sendable (String) -> Void)? = nil) { self.onCall = onCall }
     public var calls: [String] { lock.lock(); defer { lock.unlock() }; return _calls }
+    private var turnStart = 0
     public func record(_ s: String) {
         lock.lock(); _calls.append(s); lock.unlock()
         onCall?(s)
+    }
+    /// Marks the start of a new answer, for `callsThisTurn`.
+    public func beginTurn() { lock.lock(); turnStart = _calls.count; lock.unlock() }
+    /// How many calls since `beginTurn` start with `prefix`. Tools use it to cap repeats within one answer,
+    /// since each result stays in the model's small context window.
+    public func callsThisTurn(_ prefix: String) -> Int {
+        lock.lock(); defer { lock.unlock() }
+        return _calls.dropFirst(turnStart).filter { $0.hasPrefix(prefix) }.count
     }
 }
 

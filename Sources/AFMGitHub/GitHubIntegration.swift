@@ -5,6 +5,8 @@ import FoundationModels
 /// The GitHub integration: read-only, drafts only. Nothing here writes to GitHub.
 public struct GitHubIntegration: AFMIntegration {
     public static let integrationID = "github"
+    /// Items `github_read` reads in one answer. Each result stays in the 4K context, and more than this overflowed it.
+    static let readsPerAnswer = 2
     public init() {}
     public let id = GitHubIntegration.integrationID
     public let name = "GitHub"
@@ -39,22 +41,29 @@ public struct GitHubIntegration: AFMIntegration {
         }
         @Sendable func str(_ c: GeneratedContent, _ k: String) -> String { ((try? c.value(String?.self, forProperty: k)) ?? nil) ?? "" }
         return [
-            DynamicTool(name: "github_search", description: "Search GitHub issues and pull requests. Accepts GitHub search syntax, e.g. 'repo:owner/name is:open bug'.",
-                        parameters: args("GHSearchArgs", [("query", "GitHub search query")])) { a in
-                let q = str(a, "query")
-                tracker?.record("github_search(\(q))")
-                let items = try await GitHubClient.make().search(q, limit: 10)
-                return items.isEmpty ? "No results." : items.map { "\($0.ref) [\($0.state)\($0.isPR ? " PR" : "")] \($0.title)" }.joined(separator: "\n")
-            },
             DynamicTool(name: "github_read", description: "Read one GitHub issue or pull request: its description and recent comments. Pass owner/repo#number or a URL.",
                         parameters: args("GHReadArgs", [("ref", "owner/repo#number or a github.com URL")])) { a in
                 let raw = str(a, "ref")
                 tracker?.record("github_read(\(raw))")
+                if (tracker?.callsThisTurn("github_read(") ?? 0) > GitHubIntegration.readsPerAnswer {
+                    return "Not read: \(GitHubIntegration.readsPerAnswer) items were already read for this answer, which is all that fits. Answer with what you have, and offer to read \(raw) next."
+                }
                 guard let ref = GHRef.parse(raw), ref.number != nil else { return "Give a reference like owner/repo#123." }
                 let (_, text) = try await GitHubWorkflows.threadText(try GitHubClient.make(), ref, includeDiff: false)
-                return GitHubWorkflows.clip(text, 2500)
+                return GitHubWorkflows.clip(text, 1800)
             },
-            DynamicTool(name: "github_my_work", description: "List what needs the user on GitHub: review requests, assigned items and their open pull requests.",
+            DynamicTool(name: "github_open_prs", description: "Count and list open pull requests in repositories owned by the user or their organizations, including PRs other people and bots opened.",
+                        parameters: args("GHOpenPRsArgs", [("scope", "mine (the user's own repos), orgs (their organizations' repos) or all. Default all.")])) { a in
+                let scope = GitHubOpenPRs.Scope(loose: str(a, "scope"))
+                tracker?.record("github_open_prs(\(scope.rawValue))")
+                let gh = try GitHubClient.make()
+                let login = try await gh.me().login
+                let orgs = scope == .mine ? [] : try await gh.orgs().map(\.login)
+                guard let q = GitHubOpenPRs.query(login: login, orgs: orgs, scope: scope) else { return "The user doesn't belong to any GitHub organizations." }
+                let r = try await gh.searchAll(q)
+                return GitHubOpenPRs.summary(total: r.total, items: r.items, login: login, orgs: orgs, scope: scope)
+            },
+            DynamicTool(name: "github_my_work", description: "List what needs the user personally on GitHub: pull requests they wrote, reviews requested from them and items assigned to them.",
                         parameters: args("GHMineArgs", [("scope", "Optional: reviews, assigned or prs")])) { a in
                 tracker?.record("github_my_work()")
                 let gh = try GitHubClient.make()

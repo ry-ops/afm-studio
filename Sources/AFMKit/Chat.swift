@@ -210,6 +210,7 @@ public final class ChatEngine: @unchecked Sendable {
                 let active = tracker
                 let s = session!
                 let callsBefore = active.calls.count
+                active.beginTurn()
                 for try await snap in s.streamResponse(to: Prompt(text), options: record.options.generationOptions) {
                     out = snap.content
                     onPartial?(out)

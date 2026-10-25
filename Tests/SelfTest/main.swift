@@ -151,6 +151,52 @@ await suite("GitHub sign-in lookup") {
     check(GitHubAuth.ghToken(at: out) == nil, "no token when gh isn't signed in")
 }
 
+await suite("Tool call limits") {
+    let t = ToolCallTracker()
+    t.record("github_read(a#1)"); t.record("github_read(a#2)"); t.record("datetime(local)")
+    check(t.callsThisTurn("github_read(") == 2, "counts calls by prefix")
+    t.beginTurn()
+    check(t.callsThisTurn("github_read(") == 0, "a new answer starts the count again")
+    t.record("github_read(a#3)")
+    check(t.callsThisTurn("github_read(") == 1 && t.calls.count == 4, "keeps the full call list")
+}
+
+await suite("GitHub open PRs") {
+    check(GitHubOpenPRs.query(login: "me1", orgs: ["a", "b"], scope: .all) == "is:open is:pr archived:false user:me1 org:a org:b", "all: user plus every org")
+    check(GitHubOpenPRs.query(login: "me1", orgs: ["a"], scope: .mine) == "is:open is:pr archived:false user:me1", "mine: user only")
+    check(GitHubOpenPRs.query(login: "me1", orgs: ["a"], scope: .orgs) == "is:open is:pr archived:false org:a", "orgs: orgs only")
+    check(GitHubOpenPRs.query(login: "me1", orgs: [], scope: .orgs) == nil, "orgs with no orgs builds no query")
+    check(GitHubOpenPRs.Scope(loose: "my orgs") == .orgs && GitHubOpenPRs.Scope(loose: "") == .all
+          && GitHubOpenPRs.Scope(loose: "mine") == .mine && GitHubOpenPRs.Scope(loose: "everything") == .all, "loose scopes")
+
+    check(GitHubClient.normalizeQuery("is:pr  author:me -assignee:ME review-requested:me") == "is:pr author:@me -assignee:@me review-requested:@me", "me becomes @me")
+    check(GitHubClient.normalizeQuery("author:meg org:me label:me") == "author:meg org:me label:me", "other tokens are left alone")
+    checkThrows("an empty query is refused") { _ = try GitHubClient.checkedQuery("   ") }
+
+    let e422 = #"{"message":"Validation Failed","errors":[{"message":"The listed users and repositories cannot be searched."}]}"#
+    check(GitHubClient.errorMessage(Data(e422.utf8), status: 422) == "Validation Failed: The listed users and repositories cannot be searched.", "422 details are kept")
+    let eField = #"{"message":"Validation Failed","errors":[{"resource":"Search","field":"q","code":"missing"}]}"#
+    check(GitHubClient.errorMessage(Data(eField.utf8), status: 422) == "Validation Failed: q is missing", "field errors are described")
+    check(GitHubClient.errorMessage(Data("<html>".utf8), status: 502) == "HTTP 502", "non-JSON bodies fall back to the status")
+
+    func pr(_ n: Int, _ repo: String, _ who: String) -> String {
+        #"{"id":\#(n),"number":\#(n),"title":"PR \#(n)","state":"open","user":{"login":"\#(who)"},"labels":[],"comments":0,"html_url":"x","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-2\#(n % 10)T00:00:00Z","pull_request":{"url":"x"},"repository_url":"https://api.github.com/repos/\#(repo)"}"#
+    }
+    let json = "[" + [pr(1, "a/x", "dependabot[bot]"), pr(2, "a/x", "me1"), pr(3, "me1/y", "dependabot[bot]"), pr(4, "b/z", "other")].joined(separator: ",") + "]"
+    let items = try GitHubClient.decoder.decode([GHIssue].self, from: Data(json.utf8))
+    let text = GitHubOpenPRs.summary(total: 9, items: items, login: "me1", orgs: ["a", "b"], scope: .all, listLimit: 2)
+    check(text.hasPrefix("9 open pull requests in me1's repos and 2 organizations (a, b)."), "summary leads with the total")
+    check(text.contains("cover the 4 most recently updated"), "says when counts are partial")
+    check(!text.contains("In organization repos"), "no split when counts are partial")
+    let full = GitHubOpenPRs.summary(total: 4, items: items, login: "me1", orgs: ["a", "b"], scope: .all)
+    check(full.contains("In me1's own repos: 1. In organization repos: 3."), "splits own and org repos when counts are complete")
+    check(text.contains("2 are from bots") && text.contains("1 were opened by me1"), "bots and the user's own PRs are counted")
+    check(text.contains("By owner: a 2, b 1, me1 1."), "counts per owner, largest first")
+    check(text.contains("- a/x: 2"), "counts per repo")
+    check(text.components(separatedBy: "\n- ").count - 1 == 3 + 2, "lists 3 repos and 2 PRs")
+    check(GitHubOpenPRs.summary(total: 0, items: [], login: "me1", orgs: [], scope: .mine) == "No open pull requests in me1's repos.", "empty result")
+}
+
 await suite("Updates") {
     check(SemVer("v0.2.0")! > SemVer("0.1.0")!, "newer minor wins")
     check(SemVer("0.10.0")! > SemVer("0.9.9")!, "numbers compare as numbers")
