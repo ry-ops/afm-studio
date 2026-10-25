@@ -255,6 +255,7 @@ public final class OpenAIServer: @unchecked Sendable {
         }
 
         var schema: GenerationSchema?
+        var jsonObject = false
         if let rf = b["response_format"] as? [String: Any] {
             switch rf.str("type") {
             case "json_schema":
@@ -262,6 +263,7 @@ public final class OpenAIServer: @unchecked Sendable {
                     do { schema = try JSONSchemaConverter.schema(from: s) } catch { return self.error(c, 400, "Unsupported schema: \(AFMError.from(error).message)", code: "invalid_schema") }
                 }
             case "json_object":
+                jsonObject = true
                 system += (system.isEmpty ? "" : "\n\n") + "Respond with a single valid JSON object and nothing else."
             default: break
             }
@@ -305,6 +307,10 @@ public final class OpenAIServer: @unchecked Sendable {
                         let r = try await session.respond(to: Prompt(prompt), schema: schema, options: opts.generationOptions)
                         full = JSONRender.pretty(SchemaOrder(schema)?.apply(r.content) ?? r.content)
                         chunk(["content": full], finish: nil)
+                    } else if jsonObject {
+                        // Buffered, so a Markdown fence around the JSON can be removed before anything is sent.
+                        full = JSONRender.unfenced(try await session.respond(to: Prompt(prompt), options: opts.generationOptions).content)
+                        chunk(["content": full], finish: nil)
                     } else {
                         var sent = ""
                         for try await snap in session.streamResponse(to: Prompt(prompt), options: opts.generationOptions) {
@@ -326,7 +332,8 @@ public final class OpenAIServer: @unchecked Sendable {
                         let c = try await session.respond(to: Prompt(prompt), schema: schema, options: opts.generationOptions).content
                         text = JSONRender.pretty(SchemaOrder(schema)?.apply(c) ?? c)
                     } else {
-                        text = try await session.respond(to: Prompt(prompt), options: opts.generationOptions).content
+                        let raw = try await session.respond(to: Prompt(prompt), options: opts.generationOptions).content
+                        text = jsonObject ? JSONRender.unfenced(raw) : raw
                     }
                     let pt = (try? await model.tokenCount(for: session.transcript)) ?? 0
                     let ct = (try? await model.tokenCount(for: Prompt(text))) ?? 0
@@ -339,7 +346,7 @@ public final class OpenAIServer: @unchecked Sendable {
                 }
             }
         } catch {
-            let e = AFMError.from(error)
+            let e = await AFMError.resolve(error)
             if stream {
                 let obj: [String: Any] = ["error": ["message": e.fullDescription, "type": e.code, "code": e.code]]
                 raw(c, Data("data: \(JSONValue.string(obj))\n\ndata: [DONE]\n\n".utf8), close: true)

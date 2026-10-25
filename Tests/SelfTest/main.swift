@@ -100,6 +100,17 @@ await suite("Text utilities") {
     check(ToolKind.riskWarning([.readFile, .calculator]) == nil, "file alone doesn't warn")
 }
 
+await suite("JSON fences") {
+    check(JSONRender.unfenced("```json\n{\"a\": 1}\n```") == "{\"a\": 1}", "json fence removed")
+    check(JSONRender.unfenced("Here you go:\n```\n[1, 2]\n```\nDone.") == "[1, 2]", "untagged fence with prose")
+    check(JSONRender.unfenced("  {\"b\": true} ") == "{\"b\": true}", "no fence is trimmed only")
+    check(JSONRender.unfenced("```json\n{\"c\": 3}") == "{\"c\": 3}", "unclosed fence")
+}
+
+await suite("Adapters") {
+    checkThrows("missing adapter file") { _ = try AdapterInfo.load(path: "/nonexistent/x.fmadapter") }
+}
+
 await suite("Network guard") {
     check(NetGuard.isPrivate([127, 0, 0, 1]), "loopback")
     check(NetGuard.isPrivate([10, 1, 2, 3]) && NetGuard.isPrivate([172, 20, 0, 1]) && NetGuard.isPrivate([192, 168, 1, 1]), "RFC 1918")

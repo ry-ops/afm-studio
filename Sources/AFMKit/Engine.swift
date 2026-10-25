@@ -134,7 +134,7 @@ public enum AFM {
             return GenerationResult(text: text, isJSON: isJSON, seconds: seconds, firstTokenSeconds: first,
                                     promptTokens: pt, outputTokens: ot, toolCalls: tracker.calls)
         } catch {
-            throw AFMError.from(error)
+            throw await AFMError.resolve(error)
         }
     }
 

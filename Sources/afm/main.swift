@@ -326,6 +326,15 @@ func cmdStatus(_ a: Args) {
     out("  macOS            \(s.osVersion)")
     out("  Languages        \(s.languages.count): " + s.languages.map(ModelStatus.languageName).joined(separator: ", "))
     out("  Data folder      \(AFMPaths.root.path)")
+    if let p = a.config.adapterPath, !p.isEmpty {
+        do {
+            let info = try AdapterInfo.load(path: p)
+            out("  Adapter          \(info.path)")
+            for (k, v) in info.metadata { out("    \(k): \(v)") }
+        } catch {
+            out(warn("  Adapter          ") + AFMError.from(error).fullDescription)
+        }
+    }
 }
 
 func cmdBench(_ a: Args) async {

@@ -7,7 +7,10 @@ final class ChatViewModel {
     let engine: ChatEngine
     weak var app: AppState?
     var messages: [ChatMessage]
-    var draft = ""
+    var draft = "" {
+        // Warm the model up while the person is still typing their first words.
+        didSet { if oldValue.isEmpty && !draft.isEmpty && !busy { engine.prewarm() } }
+    }
     var streaming: String?
     var liveTools: [String] = []
     var busy = false

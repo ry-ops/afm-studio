@@ -85,8 +85,10 @@ struct ModelView: View {
 
     func test() {
         do {
+            let info = try AdapterInfo.load(path: adapterPath)
             let m = try ModelConfig(adapterPath: adapterPath).makeModel()
-            adapterResult = m.isAvailable ? "✓ Adapter loaded and the model is available." : "Adapter loaded, but the model isn't available."
+            let head = m.isAvailable ? "✓ Adapter loaded and the model is available." : "Adapter loaded, but the model isn't available."
+            adapterResult = head + "\n" + info.summary + "\nAdapters only work with the system model version they were trained for. Retrain after a major macOS update."
         } catch {
             adapterResult = "✗ " + AFMError.from(error).fullDescription
         }

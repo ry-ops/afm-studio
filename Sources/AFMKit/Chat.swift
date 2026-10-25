@@ -159,6 +159,15 @@ public final class ChatEngine: @unchecked Sendable {
         return LanguageModelSession(model: m, tools: tools, transcript: Transcript(entries: entries))
     }
 
+    /// Loads the model and caches the instructions and history ahead of the next message, which
+    /// shortens the wait for the first token. Call it when the person starts typing. It does nothing
+    /// if the session is already built or the model is unavailable.
+    public func prewarm() {
+        guard session == nil, let s = try? makeSession(tracker: tracker) else { return }
+        session = s
+        s.prewarm()
+    }
+
     /// Tokens currently used by the conversation, out of the context size.
     public func contextUsage() async -> (used: Int, total: Int) {
         let total = SystemLanguageModel.default.contextSize
@@ -231,7 +240,7 @@ public final class ChatEngine: @unchecked Sendable {
                     record.messages.removeLast()
                     save()
                 }
-                throw AFMError.from(error)
+                throw await AFMError.resolve(error)
             }
         }
     }

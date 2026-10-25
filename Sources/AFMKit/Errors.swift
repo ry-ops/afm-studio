@@ -16,7 +16,10 @@ public struct AFMError: LocalizedError, Sendable, Equatable {
     public var errorDescription: String? { message }
     public var recoverySuggestion: String? { suggestion }
     public var fullDescription: String {
-        suggestion.map { "\(message) \($0)" } ?? message
+        guard let suggestion else { return message }
+        let m = message.trimmingCharacters(in: .whitespaces)
+        let end = m.last.map { ".!?:".contains($0) } ?? true
+        return (end ? m : m + ".") + " " + suggestion
     }
 
     public static func unavailable(_ status: ModelStatus) -> AFMError {
@@ -59,11 +62,36 @@ public struct AFMError: LocalizedError, Sendable, Equatable {
             return AFMError(code: "tool_error", message: "Tool \(t.tool.name) failed: \(t.underlyingError.localizedDescription)")
         }
         if let a = error as? SystemLanguageModel.Adapter.AssetError {
-            return AFMError(code: "adapter", message: a.errorDescription ?? "\(a)", suggestion: a.recoverySuggestion)
+            let versionHint = "Each adapter works with one exact version of the system model. Retrain it with the adapter toolkit that matches this macOS release."
+            switch a {
+            case .compatibleAdapterNotFound:
+                return AFMError(code: "adapter_incompatible", message: a.errorDescription ?? "No compatible adapter was found.", suggestion: versionHint)
+            case .invalidAsset:
+                return AFMError(code: "adapter", message: a.errorDescription ?? "\(a)",
+                                suggestion: (a.recoverySuggestion.map { $0 + " " } ?? "") + versionHint)
+            default:
+                return AFMError(code: "adapter", message: a.errorDescription ?? "\(a)", suggestion: a.recoverySuggestion)
+            }
         }
         if let s = error as? GenerationSchema.SchemaError {
             return AFMError(code: "schema", message: s.errorDescription ?? "\(s)", suggestion: s.recoverySuggestion)
         }
         return AFMError(code: "error", message: (error as NSError).localizedDescription)
+    }
+
+    /// Like `from(_:)`, but for a refusal it also asks the model why it declined.
+    /// The framework generates that explanation on demand, so this costs one more short model call.
+    /// It gives up after `timeout` seconds and falls back to the plain message.
+    public static func resolve(_ error: Error, timeout: Double = 10) async -> AFMError {
+        guard case LanguageModelSession.GenerationError.refusal(let refusal, _) = error else { return from(error) }
+        let explanation: String? = await withTaskGroup(of: String?.self) { group in
+            group.addTask { try? await refusal.explanation.content }
+            group.addTask { try? await Task.sleep(for: .seconds(timeout)); return nil }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        let text = explanation?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return AFMError(code: "refusal", message: "The model declined to answer.", suggestion: text.isEmpty ? nil : "Its explanation: \(text)")
     }
 }

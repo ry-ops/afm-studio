@@ -45,6 +45,42 @@ public struct ModelConfig: Codable, Sendable, Equatable, Hashable {
     }
 }
 
+/// What a `.fmadapter` says about itself. Adapters are tied to one exact system model version,
+/// so an adapter that loads on one macOS release may fail on the next.
+public struct AdapterInfo: Sendable, Equatable {
+    public var path: String
+    /// Metadata the adapter's author wrote at export time, flattened to strings and sorted by key.
+    public var metadata: [(key: String, value: String)]
+
+    public static func == (a: AdapterInfo, b: AdapterInfo) -> Bool {
+        a.path == b.path && a.metadata.map(\.key) == b.metadata.map(\.key) && a.metadata.map(\.value) == b.metadata.map(\.value)
+    }
+
+    public static func load(path: String) throws -> AdapterInfo {
+        let expanded = (path as NSString).expandingTildeInPath
+        do {
+            let adapter = try SystemLanguageModel.Adapter(fileURL: URL(fileURLWithPath: expanded))
+            let pairs = adapter.creatorDefinedMetadata.map { (key: $0.key, value: Self.flatten($0.value)) }.sorted { $0.key < $1.key }
+            return AdapterInfo(path: expanded, metadata: pairs)
+        } catch {
+            throw AFMError.from(error)
+        }
+    }
+
+    static func flatten(_ v: Any) -> String {
+        if let s = v as? String { return s }
+        if JSONSerialization.isValidJSONObject(v), let d = try? JSONSerialization.data(withJSONObject: v, options: [.sortedKeys]) {
+            return String(decoding: d, as: UTF8.self)
+        }
+        return "\(v)"
+    }
+
+    /// One line per metadata entry, ready to print.
+    public var summary: String {
+        metadata.isEmpty ? "No metadata." : metadata.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
+    }
+}
+
 public struct ModelStatus: Codable, Sendable, Equatable {
     public var available: Bool
     public var reason: String?

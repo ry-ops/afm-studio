@@ -49,6 +49,20 @@ public enum JSONRender {
 }
 
 /// Restores schema property order (FoundationModels returns keys in arbitrary order).
+extension JSONRender {
+    /// Asked for JSON without a schema, the model often wraps it in a Markdown code fence
+    /// (three backticks and a `json` tag). This returns the text inside the first fence, or the
+    /// text unchanged when there is no fence.
+    public static func unfenced(_ text: String) -> String {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let open = t.range(of: "```") else { return t }
+        var body = t[open.upperBound...]
+        if let nl = body.firstIndex(of: "\n") { body = body[body.index(after: nl)...] } else { return t }
+        guard let close = body.range(of: "```") else { return String(body).trimmingCharacters(in: .whitespacesAndNewlines) }
+        return String(body[..<close.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+}
+
 public struct SchemaOrder: @unchecked Sendable {
     let root: [String: Any]
     let defs: [String: Any]

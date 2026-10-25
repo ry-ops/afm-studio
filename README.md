@@ -43,11 +43,19 @@ If you can't write to `/Applications`, `--install` uses `~/Applications` instead
 
 The first build downloads SwiftTerm through Swift Package Manager. After that, builds work offline. The app is ad-hoc signed for local use. On first launch it links `~/.local/bin/afm` to its bundled CLI and registers the MCP server with Claude. You can turn that off in the Claude section.
 
+## macOS 27 and AFM 3
+
+In 2026 Apple announced its third generation of foundation models, AFM 3, alongside macOS 27. AFM Studio is built against the macOS 26 SDK and keeps working on macOS 27. Here is what changes when you upgrade.
+
+- **Custom adapters need retraining.** Every `.fmadapter` works with one exact system model version. Apple's adapter toolkit 26.0.0 is the last release for macOS 26 and its adapters don't load on macOS 27. AFM Studio says so when an adapter fails to load. `afm status --adapter PATH` and the Model pane's Test button show the adapter's metadata.
+- **Apple ships its own `fm` command.** macOS 27 adds a command-line tool named `fm`. AFM Studio's command stays `afm`, so the two don't collide.
+- **Not yet supported.** The macOS 27 framework adds image input, the Private Cloud Compute model, Dynamic Profiles and an Evaluations framework. Using them needs the macOS 27 SDK, so they aren't in this build.
+
 ## The app
 
 ![Structured output](docs/images/structured.png)
 
-- **Chat:** streaming replies with tool calls shown inline. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically.
+- **Chat:** streaming replies with tool calls shown inline. The model warms up as soon as you start typing, so the first token arrives sooner. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically.
 - **Recipes:** summarize, key points, ask-the-document, rewrite, proofread, translate, sentiment, classify, entities, action items, meeting notes, tags, quiz, commit messages and more. Inputs longer than the context are split on paragraph and sentence boundaries, run piece by piece, and combined. You can write your own recipes in the app or as JSON files.
 - **Structured output:** build a schema with fields or paste JSON Schema, then watch valid JSON stream in. Apple's constrained decoding guarantees the result matches the schema. One click exports the schema as Swift `@Generable` code.
 - **Batch:** drop files or folders, pick a recipe, then export the results as JSON Lines, CSV or Markdown.
@@ -55,7 +63,7 @@ The first build downloads SwiftTerm through Swift Package Manager. After that, b
 - **Tokens:** exact counts from the on-device tokenizer, measured against the context window.
 - **Benchmark:** time to first token and tokens per second on your Mac, charted.
 - **History:** every run from every surface, stored only on this Mac.
-- **Model:** availability, supported languages, and custom `.fmadapter` adapters.
+- **Model:** availability, supported languages, and custom `.fmadapter` adapters with their metadata.
 - **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
 - **Terminal:** a VS Code-style panel with tabs under every pane, running your login shell. **Explain** asks the on-device model what the output means. See [The terminal](#the-terminal).
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.
@@ -189,7 +197,7 @@ r = client.chat.completions.create(model="apple-foundation-model",
 
 The server offers three models. `apple-foundation-model` uses the default guardrails. `apple-foundation-model-permissive` uses looser guardrails for transforming your own text. `apple-foundation-model-tagging` uses Apple's content-tagging model.
 
-It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `response_format` with `json_schema` or `json_object`. It also serves `GET /afm/recipes` and `POST /afm/recipes/{id}`.
+It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `response_format` with `json_schema` or `json_object`. With `json_object`, any Markdown code fence the model puts around the JSON is removed, so the reply parses as is. It also serves `GET /afm/recipes` and `POST /afm/recipes/{id}`.
 
 The server listens only on `127.0.0.1`. Web pages from other sites can't use it:
 
