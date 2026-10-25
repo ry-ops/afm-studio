@@ -52,7 +52,8 @@ final class AppState {
 
     func newChat() {
         let r = ChatSessionRecord(instructions: settings.defaultInstructions, config: settings.defaultConfig,
-                                  options: settings.defaultOptions, tools: settings.defaultTools, source: "studio")
+                                  options: settings.defaultOptions, tools: settings.defaultTools, source: "studio",
+                                  integrations: ChatSessionRecord.defaultIntegrations)
         SessionStore.shared.save(r)
         reloadSessions()
         pane = .chat(r.id)
@@ -60,7 +61,7 @@ final class AppState {
 
     func chatModel(_ id: String) -> ChatViewModel {
         if let m = chatModels[id] { return m }
-        let rec = SessionStore.shared.load(id) ?? ChatSessionRecord(id: id)
+        let rec = SessionStore.shared.load(id) ?? ChatSessionRecord(id: id, integrations: ChatSessionRecord.defaultIntegrations)
         let m = ChatViewModel(engine: ChatEngine(record: rec), app: self)
         chatModels[id] = m
         return m

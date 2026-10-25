@@ -10,10 +10,16 @@ public struct ChatMessage: Codable, Identifiable, Sendable, Equatable, Hashable 
     public var seconds: Double?
     public var tokens: Int?
     public var tools: [String]
+    /// What the model sees for this message when it differs from `text`: notes standing in for a message
+    /// too long for the context. `text` keeps what the person wrote.
+    public var contextText: String?
 
     public init(id: UUID = UUID(), role: Role, text: String, date: Date = Date(), seconds: Double? = nil, tokens: Int? = nil, tools: [String] = []) {
         self.id = id; self.role = role; self.text = text; self.date = date; self.seconds = seconds; self.tokens = tokens; self.tools = tools
     }
+
+    /// The text the model sees.
+    public var modelText: String { contextText ?? text }
 }
 
 /// A saved conversation. Shared by the app, the CLI (`afm chat`) and the MCP server (`afm_chat`).
@@ -35,9 +41,18 @@ public struct ChatSessionRecord: Codable, Identifiable, Sendable, Equatable, Has
     public var integrations: [String]?
 
     public init(id: String = UUID().uuidString, title: String = "New chat", instructions: String = ChatSessionRecord.defaultInstructions,
-                config: ModelConfig = .default, options: GenOptions = .default, tools: [ToolKind] = ToolKind.safeDefaults, source: String = "studio") {
+                config: ModelConfig = .default, options: GenOptions = .default, tools: [ToolKind] = ToolKind.safeDefaults, source: String = "studio",
+                integrations: [String]? = nil) {
         self.id = id; self.title = title; self.created = Date(); self.updated = Date(); self.instructions = instructions
         self.config = config; self.options = options; self.tools = tools; self.messages = []; self.summary = nil; self.contextStart = 0; self.source = source
+        self.integrations = integrations
+    }
+
+    /// Integrations a new chat starts with: every one whose "Tools in chat" switch is on. Without this, a new
+    /// chat had none, and the model answered that it couldn't see GitHub.
+    public static var defaultIntegrations: [String]? {
+        let ids = IntegrationRegistry.chatEnabled.map(\.id)
+        return ids.isEmpty ? nil : ids
     }
 
     public static let defaultInstructions = "You are a helpful, accurate assistant running privately on this Mac. Be concise. Use the calculator for any arithmetic and the date tool for the current date or time. Only call a tool when the question needs it. If you don't know something, say so."
@@ -136,7 +151,9 @@ public final class ChatEngine: @unchecked Sendable {
         return record.instructions + "\n\nSummary of the conversation so far:\n" + s
     }
 
-    private func makeSession(tracker: ToolCallTracker) throws -> LanguageModelSession {
+    /// Builds the session from the saved chat. With `pending`, the last message is a user message about to be
+    /// sent as the prompt, so it's left out of the history. Including it sent it twice.
+    private func makeSession(tracker: ToolCallTracker, pending: Bool = false) throws -> LanguageModelSession {
         let m = record.config.makeModel()
         guard m.isAvailable else { throw AFMError.unavailable(.current()) }
         model = m
@@ -149,9 +166,11 @@ public final class ChatEngine: @unchecked Sendable {
             .instructions(Transcript.Instructions(segments: [.text(.init(content: effectiveInstructions))],
                                                   toolDefinitions: tools.map { Transcript.ToolDefinition(tool: $0) }))
         ]
-        for m in record.messages.dropFirst(record.contextStart) {
+        var history = Array(record.messages.dropFirst(record.contextStart))
+        if pending, history.last?.role == .user { history.removeLast() }
+        for m in history {
             switch m.role {
-            case .user: entries.append(.prompt(Transcript.Prompt(segments: [.text(.init(content: m.text))])))
+            case .user: entries.append(.prompt(Transcript.Prompt(segments: [.text(.init(content: m.modelText))])))
             case .assistant: entries.append(.response(Transcript.Response(assetIDs: [], segments: [.text(.init(content: m.text))])))
             case .notice: continue
             }
@@ -172,7 +191,7 @@ public final class ChatEngine: @unchecked Sendable {
     public func contextUsage() async -> (used: Int, total: Int) {
         let total = SystemLanguageModel.default.contextSize
         guard let s = session, let m = model else {
-            let text = effectiveInstructions + record.messages.dropFirst(record.contextStart).map(\.text).joined(separator: "\n")
+            let text = effectiveInstructions + record.messages.dropFirst(record.contextStart).map(\.modelText).joined(separator: "\n")
             return (await AFM.tokenCount(text, config: record.config), total)
         }
         let used = (try? await m.tokenCount(for: s.transcript)) ?? 0
@@ -199,19 +218,41 @@ public final class ChatEngine: @unchecked Sendable {
             try await compact(onNotice: onNotice)
         }
 
+        // A message too long for the context is read in parts first, and the model answers from notes.
+        var prompt = text
+        let room = await promptRoom()
+        if promptTokens > room {
+            do {
+                prompt = try await condense(text, tokens: promptTokens, room: room, onNotice: onNotice)
+            } catch {
+                if let last = record.messages.last, last.role == .user, last.text == text { record.messages.removeLast(); save() }
+                throw error is CancellationError ? error : await AFMError.resolve(error)
+            }
+            record.messages[record.messages.count - 1].contextText = prompt
+            save()
+        }
+
+        // Cap the answer at the room left, so a long answer stops cleanly instead of overflowing the context
+        // partway through. With little room left, compaction on overflow still handles it.
+        var turnOptions = record.options
+        let promptNow = prompt == text ? promptTokens : await AFM.tokenCount(prompt, config: record.config)
+        if let cap = ChatEngine.answerCap(room: room, promptTokens: promptNow) {
+            turnOptions.maxTokens = min(turnOptions.maxTokens ?? cap, cap)
+        }
+
         var attempt = 0
         while true {
             let callTracker = ToolCallTracker(onCall: onTool)
             var out = ""
             let start = Date()
             do {
-                if session == nil { tracker = callTracker; session = try makeSession(tracker: callTracker) }
+                if session == nil { tracker = callTracker; session = try makeSession(tracker: callTracker, pending: true) }
                 else { tracker.onCall = onTool }
                 let active = tracker
                 let s = session!
                 let callsBefore = active.calls.count
                 active.beginTurn()
-                for try await snap in s.streamResponse(to: Prompt(text), options: record.options.generationOptions) {
+                for try await snap in s.streamResponse(to: Prompt(prompt), options: turnOptions.generationOptions) {
                     out = snap.content
                     onPartial?(out)
                 }
@@ -246,12 +287,73 @@ public final class ChatEngine: @unchecked Sendable {
         }
     }
 
+    /// Tokens left for the next prompt after the instructions, tool definitions and history, keeping room for the answer.
+    func promptRoom() async -> Int {
+        let total = SystemLanguageModel.default.contextSize
+        let overhead: Int
+        if let s = try? makeSession(tracker: ToolCallTracker(), pending: true), let m = model {
+            overhead = (try? await m.tokenCount(for: s.transcript)) ?? Chunker.estimate(effectiveInstructions)
+        } else {
+            overhead = await AFM.tokenCount(effectiveInstructions, config: record.config)
+        }
+        return total - overhead - ChatEngine.answerReserve
+    }
+
+    /// Tokens kept free for the answer when deciding whether a message fits.
+    static let answerReserve = 900
+
+    /// The most tokens the answer may use, given the room `promptRoom` reported and the prompt's size.
+    /// nil when under 300 tokens are left, where a capped answer would be too short to be useful.
+    public static func answerCap(room: Int, promptTokens: Int) -> Int? {
+        let left = room + answerReserve - promptTokens - 60
+        return left >= 300 ? left : nil
+    }
+
+    /// Reads a message that's too long for the context in parts, takes notes on each with the person's request
+    /// in mind, and returns a prompt built from those notes. This is what Recipes do for long documents.
+    func condense(_ text: String, tokens: Int, room: Int, onNotice: (@Sendable (String) -> Void)?) async throws -> String {
+        var cfg = record.config
+        cfg.guardrails = .permissive
+        let model = cfg.makeModel()
+        let (head, tail) = LongMessage.ends(text)
+        let chunks = await Chunker.split(text, maxTokens: LongMessage.chunkTokens, model: model)
+        onNotice?("This message is about \(tokens.formatted()) tokens, more than the model can read at once. Reading it in \(chunks.count) parts.")
+        let request = try await AFM.generate(LongMessage.requestPrompt(head: head, tail: tail), instructions: LongMessage.notesInstructions,
+                                             options: GenOptions(temperature: 0.1, maxTokens: 80), config: cfg)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var notes: [String] = []
+        for (i, c) in chunks.enumerated() {
+            try Task.checkCancellation()
+            onNotice?("Reading part \(i + 1) of \(chunks.count)…")
+            notes.append(try await AFM.generate(LongMessage.notesPrompt(part: c, index: i, count: chunks.count, request: request),
+                                                instructions: LongMessage.notesInstructions,
+                                                options: GenOptions(temperature: 0.2, maxTokens: LongMessage.notesTokens), config: cfg))
+        }
+        var joined = LongMessage.join(notes)
+        let limit = room - Chunker.estimate(request) - 150
+        var depth = 0
+        while await Chunker.countTokens(joined, model: model) > limit, depth < 3 {
+            try Task.checkCancellation()
+            onNotice?("Combining notes…")
+            var next: [String] = []
+            for p in await Chunker.split(joined, maxTokens: LongMessage.chunkTokens, model: model) {
+                next.append(try await AFM.generate(LongMessage.combinePrompt(p, request: request),
+                                                   instructions: LongMessage.notesInstructions,
+                                                   options: GenOptions(temperature: 0.2, maxTokens: LongMessage.notesTokens), config: cfg))
+            }
+            joined = LongMessage.join(next)
+            depth += 1
+        }
+        onNotice?("Read all \(chunks.count) parts. Answering from the notes.")
+        return LongMessage.finalPrompt(request: request, notes: joined)
+    }
+
     /// Summarises older turns into the instructions and keeps only the newest user message live.
     public func compact(onNotice: (@Sendable (String) -> Void)? = nil) async throws {
         let live = Array(record.messages.dropFirst(record.contextStart))
         guard live.count > 1 else { return }
         let older = live.dropLast()
-        var convo = older.filter { $0.role != .notice }.map { ($0.role == .user ? "User: " : "Assistant: ") + $0.text }.joined(separator: "\n")
+        var convo = older.filter { $0.role != .notice }.map { ($0.role == .user ? "User: " : "Assistant: ") + $0.modelText }.joined(separator: "\n")
         if let s = record.summary { convo = "Earlier summary: \(s)\n" + convo }
         if convo.count > 9000 { convo = String(convo.suffix(9000)) }
         var cfg = record.config

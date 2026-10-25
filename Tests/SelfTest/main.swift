@@ -151,6 +151,35 @@ await suite("GitHub sign-in lookup") {
     check(GitHubAuth.ghToken(at: out) == nil, "no token when gh isn't signed in")
 }
 
+await suite("Long messages") {
+    let short = LongMessage.ends("Summarize this, please.")
+    check(short.head == "Summarize this, please." && short.tail.isEmpty, "a short message is all head")
+    let long = "give me the highlights: " + String(repeating: "word ", count: 400) + "and list the dates."
+    let e = LongMessage.ends(long)
+    check(e.head.hasPrefix("give me the highlights") && e.head.count == LongMessage.endChars, "head keeps the start, where the request usually is")
+    check(e.tail.hasSuffix("and list the dates.") && e.tail.count == LongMessage.endChars, "tail keeps the end")
+    let ask = LongMessage.requestPrompt(head: e.head, tail: e.tail)
+    check(ask.contains("give me the highlights") && ask.contains("list the dates"), "request prompt sees both ends")
+    let notes = LongMessage.notesPrompt(part: "PART", index: 1, count: 3, request: "REQ")
+    check(notes.contains("part 2 of 3") && notes.contains("PART") && notes.contains("REQ"), "notes prompt carries the part and the request")
+    check(!notes.contains("give me the highlights"), "notes prompt doesn't quote the raw ends")
+    check(LongMessage.join(["a", " b\n"]) == "Part 1:\na\n\nPart 2:\nb", "notes are joined in order")
+    let final = LongMessage.finalPrompt(request: "REQ", notes: "N")
+    check(final.hasPrefix("My request: REQ") && final.contains("N") && final.contains("without calling tools"), "final prompt leads with the request")
+    check(!final.contains("It ended"), "final prompt doesn't quote the end of the message")
+
+    check(ChatEngine.answerCap(room: 2200, promptTokens: 2000) == 1040, "the answer gets the room the prompt leaves")
+    check(ChatEngine.answerCap(room: 2200, promptTokens: 2900) == nil, "no cap when too little is left to answer")
+
+    let old = #"{"id":"00000000-0000-0000-0000-000000000001","role":"user","text":"hi","date":0,"tools":[]}"#
+    let m = try JSONDecoder().decode(ChatMessage.self, from: Data(old.utf8))
+    check(m.contextText == nil && m.modelText == "hi", "chats saved before contextText still load")
+    var n = m; n.contextText = "notes"
+    check(n.modelText == "notes" && n.text == "hi", "the model sees the notes, the person sees what they wrote")
+    let round = try JSONDecoder().decode(ChatMessage.self, from: JSONEncoder().encode(n))
+    check(round.contextText == "notes", "contextText is saved")
+}
+
 await suite("Tool call limits") {
     let t = ToolCallTracker()
     t.record("github_read(a#1)"); t.record("github_read(a#2)"); t.record("datetime(local)")
@@ -331,6 +360,7 @@ await suite("Integrations") {
     check(IntegrationRegistry.isEnabled(gh) == false, "GitHub starts off")
     check(IntegrationRegistry.mcpTools.isEmpty, "no integration tools for Claude while off")
     check(IntegrationRegistry.chatEnabled.isEmpty, "no integration tools in chat while off")
+    check(ChatSessionRecord.defaultIntegrations == nil, "new chats get no integrations while off")
     checkThrows("no GitHub client (and no token read) while off") { _ = try GitHubClient.make() }
     check(IntegrationRegistry.isIntegrationTool("afm_github_digest"), "tool belongs to an installed integration")
 
@@ -343,6 +373,7 @@ await suite("Integrations") {
     IntegrationRegistry.setPrefs(gh) { $0.enabled = true }
     check(IntegrationRegistry.mcpTools.filter { $0.name.hasPrefix("afm_github_") }.count == 8, "8 GitHub tools for Claude once on")
     check(IntegrationRegistry.chatEnabled.count == 1, "GitHub chat tools once on")
+    check(ChatSessionRecord.defaultIntegrations == [gh], "new chats start with GitHub once its chat tools are on")
     await server.handleLine(#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#)
     let list = try JSONSerialization.jsonObject(with: Data(cap.lines.last!.utf8)) as! [String: Any]
     check(((list["result"] as! [String: Any])["tools"] as! [Any]).count == 23, "MCP lists 15 core + 8 GitHub tools")
