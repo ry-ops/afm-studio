@@ -73,7 +73,7 @@ enum MCPTools {
                     "reset": ["type": "boolean", "description": "Clear the conversation first."],
                 ]), required: ["message"]),
             def("afm_recipes", "List recipes", "List every recipe (built-in and user-made) with its parameters. Run one with afm_run_recipe."),
-            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, key-points) on text or a local file.",
+            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, explain-error, draft, key-points) on text or a local file. `redact` with `path` returns the file with names, addresses, emails, phone numbers and ID numbers replaced by placeholders, so you can read it without seeing them.",
                 ["recipe": ["type": "string"], "params": ["type": "object", "description": "Recipe parameters as string values, e.g. {\"tone\": \"friendly\"}.", "additionalProperties": ["type": "string"]]],
                 required: ["recipe"], withText: true),
         ]
@@ -222,7 +222,10 @@ enum MCPTools {
         var obj: [String: Any] = [
             "available": s.available, "context_size": s.contextSize, "languages": s.languages,
             "content_tagging_available": s.taggingAvailable, "macos": s.osVersion, "server_version": AFMVersion.string,
+            "server_started": ISO8601DateFormatter().string(from: AFMVersion.launched),
         ]
+        // The build this server process runs, which can differ from the installed one until the client reconnects.
+        if !AFMVersion.commit.isEmpty { obj["server_commit"] = AFMVersion.commit }
         if let r = s.reason { obj["reason"] = r }
         if let g = s.guidance { obj["guidance"] = g }
         return JSONRender.pretty(json: JSONValue.string(obj))

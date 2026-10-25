@@ -83,7 +83,19 @@ public struct AFMError: LocalizedError, Sendable, Equatable {
         if let s = error as? GenerationSchema.SchemaError {
             return AFMError(code: "schema", message: s.errorDescription ?? "\(s)", suggestion: s.recoverySuggestion)
         }
+        if isTransientModelError(error) {
+            return AFMError(code: "model_internal", message: "The on-device model hit an internal error.",
+                            suggestion: "Retry. It tends to happen under sustained load and clears up on its own.")
+        }
         return AFMError(code: "error", message: (error as NSError).localizedDescription)
+    }
+
+    /// The framework's unnamed internal failure (`LanguageModelError error -1`), which arrives as a
+    /// plain NSError rather than a `LanguageModelError` case. Seen now and then during long runs of
+    /// back-to-back requests; the same request then succeeds.
+    public static func isTransientModelError(_ error: Error) -> Bool {
+        let ns = error as NSError
+        return ns.domain.hasSuffix("LanguageModelError") && ns.code == -1
     }
 
     /// Like `from(_:)`, but for a refusal it also asks the model why it declined.

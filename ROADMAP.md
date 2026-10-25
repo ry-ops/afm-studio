@@ -85,6 +85,142 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 **Known limits.** The model often makes one pointless calculator call before answering, because the notes contain numbers. Quoting the end of the message directly made it summarize only the end, which is why the request is worked out first.
 
+### MCP tool answers arrive damaged or incomplete
+
+**Status.** Fixed for the next release.
+
+**What was wrong.** Running every MCP tool from Claude Code turned up these problems:
+
+- `afm_github_summarize` and `afm_github_repo_brief` returned only `{"seconds": …, "chunks": …}`. Claude never saw the summary or the brief.
+- Proofread and translate wrapped their answers in `"""`.
+- The outline recipe and `afm_github_pr_description` wrapped their Markdown in a code fence. For a PR, the fence was in the pre-filled link too, so the PR would open as one code block.
+- `afm_tag` with `max_tags: 8` on a long file returned 12 tags.
+- Release notes printed their Features and Fixes sections twice.
+- On a long file, ask-the-document answered only one part of a two-part question.
+- Triage called a feature PR a bug and invented user frustration. Next steps named files that don't exist.
+- Summaries of the roadmap described planned features, such as image input, as shipped.
+
+**Why.**
+
+- The two GitHub tools sent their timing data as `structuredContent`. Clients that read structured content show it in place of the text block, and the text wasn't in it.
+- Recipes put their input between `"""` delimiters. The model copies them when its answer is a transformed copy of the input, and nothing removed them.
+- Nothing removed a Markdown fence around a prose answer. `JSONRender.unfenced` exists, but only the OpenAI-compatible server used it.
+- Each chunk of a long input obeys the schema's `maxItems`, but merging the chunks joined their arrays without applying the limit again.
+- Asked for two sentences of highlights, the model sometimes copied the notes, and the copy went in above the real notes.
+- The last pass over a long input was told to treat the parts as one document, so it kept one part's answer and dropped the rest.
+- The triage, next-steps and summarize prompts didn't rule out those mistakes.
+
+**What changed.**
+
+- The two GitHub tools put their text in the structured reply (`GitHubIntegration.meta`).
+- `TextCleanup.tidy` removes `"""` delimiters and a `markdown` or `md` fence around a whole prose answer. A code fence, or one inside a longer answer, is kept. The recipe runner applies it to every prose recipe, which covers the PR drafts.
+- `JSONMerge.merge(_:schema:)` cuts each merged array to its schema's `maxItems`, including arrays inside array items. This also covers keywords, quiz and next steps.
+- Highlights that hold headings or bullets, or run past 600 characters, are dropped (`GitHubWorkflows.isProseHighlight`).
+- The last pass over a long input is told it has one result per section, and to keep every detail that answers the request.
+- Triage is told that a `feat:` or `fix:` title states the type and never to describe feelings the text doesn't state. Next steps names a path only if it appears in the material. Summarize keeps planned work planned.
+- The PR prompt asks for only "Not stated" when testing isn't described. Before, it could add that line after other bullets.
+
+**Tested.** `afm-selftest` covers the cleanup, the merge limit, nested limits and the highlight check. A script drove `afm mcp` from a build over stdio with each case above. The installed 0.2.3 build failed 9 of the 11 cases. The new build passed all 11. The remaining cases depend on the model, which doesn't always repeat the mistake. The summary fix is the weakest: one run in three still mentioned image input, but described it as a goal rather than a shipped feature.
+
+### Recipes ignore parts of their instructions
+
+**Status.** Fixed for the next release, except where noted.
+
+**What was wrong.** A pass over all 21 built-in recipes ran 63 cases, covering every tone, language, intent, style and count choice. The installed 0.2.3 build passed 30 of them. Besides the `"""` wrappers and fences above:
+
+- A "short" summary of the README ran 553 words. Medium and detailed came out the same length.
+- Rewrite in the professional tone, and every email reply, added a "Subject:" line the input didn't have.
+- Headlines came back in quotation marks.
+- Commit messages used a file name as the scope (`refactor(Chunker.swift)`) and called new behavior a refactor.
+- Proofread left "Me and him have been planning".
+- Regex fenced its pattern, though it promises the pattern on the first line. It left the ZIP code pattern unanchored and wrote an ISO date pattern that rejects `2026-01-05`.
+
+**What changed.**
+
+- Summarize spells out each length: short is at most 5 bullets or 3 sentences, medium at most 10 or 6, detailed as long as the text needs.
+- Rewrite adds nothing the text doesn't have. Email reply outputs no subject line. `TextCleanup.tidy` also drops a leading "Subject:" line the input doesn't have, since the professional tone kept adding one.
+- Headlines are asked for without quotation marks.
+- Commit messages use feat for new behavior and fix for broken behavior, and the scope names a module. Placing that rule last in the instructions kept the bullet body. Placed in the middle, the body was dropped in two runs out of three.
+- Proofread names pronoun case, subject-verb agreement and run-on sentences.
+- Regex is told to anchor its patterns and to give the bare pattern on the first line.
+
+**Tested.** The new build passes 58 of the 63 cases. What's still open:
+
+- **Long summaries** come out shorter, at 271 to 350 words instead of 553, and take about half as long. The length limits now hold too, as described under "Summaries and drafts break their own rules" below.
+- **Proofread** missed "Me and him" until the instructions gave that exact case as an example. It now returns "He and I have been".
+- **Regex** still fences its pattern, and gets one or two of three test patterns wrong. It needs a decision: verify patterns on the Mac, or remove the recipe.
+
+### New recipes: redact, explain an error, draft from notes
+
+**Status.** Added for the next release.
+
+- **Redact** replaces personal details with numbered placeholders, such as `[Person 1]` and `[Email 1]`. The model only lists the names and whole addresses, as JSON. `Redactor` makes the replacements and finds emails, phone numbers, US Social Security numbers and card numbers with patterns. Card numbers must pass their checksum. Nothing else in the text can change, and a name the model invents that isn't in the text is ignored. A last name on its own gets the full name's placeholder. The recipe has a schema, but `transform: .redact` makes it answer in text, so `isStructured` is false. With `path`, Claude can read a redacted copy of a file through `afm_run_recipe`.
+- **Explain an error** reads an error message, stack trace or log. It says what failed, quoting the line, then gives the likely cause and one to three next steps. A log longer than the context keeps its end (the new `tail` strategy), with a note that earlier lines were left out. The terminal's Explain button already trims this way.
+- **Draft from notes** turns bullet notes into a paragraph, email, short report, chat message or bullet points. It is told to add nothing the notes don't contain.
+
+**Also.** The framework sometimes fails with an unnamed internal error (`LanguageModelError error -1`) during long runs of back-to-back requests. It arrives as a plain `NSError`, so it showed as "The operation couldn't be completed." Recipes now retry such a call once, and the error reads "The on-device model hit an internal error", with advice to retry.
+
+**Tested.** `afm-selftest` covers the redactor, including card checksums, an international phone number, dates and short numbers left alone, one placeholder per value, and bad model output. It also covers the error mapping. Live cases: three redaction texts, a text with nothing to hide that came back unchanged, three address formats in six runs, all five draft formats (no number in a draft that isn't in the notes), and a Swift error, a Python traceback and a 4,000-line log with the error on its last line.
+
+### Summaries and drafts break their own rules
+
+**Status.** Fixed for the next release.
+
+**What was wrong.** A spin through every MCP tool with the afm-studio Claude Code mod watching turned up:
+
+- A short summary of the README had 17 bullets, and of the roadmap 23. Short allows 5. As a paragraph it ran 342 words, where short allows 3 sentences.
+- Explain an error quoted the whole traceback, and one of its next steps was a database dump command offered as a way to read logs.
+- The repo brief called 0.2.3 the stable release. It was a commit named "release: 0.2.3", and the latest published release was 0.2.2.
+- Next steps proposed documenting the chat GitHub tools, which the README already covers.
+- `afm_status` couldn't say which build the server runs. After an install, a client still talks to the old server process until it reconnects, and nothing could tell.
+
+**What changed.**
+
+- A recipe can set `maxBullets` and `maxSentences`, keyed by a parameter value. Summarize uses 5 and 3 for short, 10 and 6 for medium. When an answer runs over, the model picks the most important bullets, or shortens the paragraph, in one more pass. If it's still over, `TextCleanup.firstBullets` or `firstSentences` cuts it. Sentences are counted with NaturalLanguage, so "e.g." doesn't end one.
+- Explain an error quotes only the line that names the error, and its next steps only inspect or check. It never suggests a command that dumps, deletes, resets or changes data.
+- Proofread's instructions include "Me and him has been" becoming "He and I have been".
+- The repo material lists the latest published release from GitHub's releases API, and the brief is told a commit that mentions a release isn't one.
+- Next steps suggests documentation only when an issue asks for it or the material shows the gap.
+- `afm_status` adds `server_commit`, read from the app's `Info.plist` when the server starts, and `server_started`.
+
+**Tested.** `afm-selftest` covers bullet and sentence counting and cutting, the limits, and the new status fields. Live over MCP: short summaries of the README and the roadmap came back with 5 bullets, the short paragraph with 3 sentences, proofread fixed "Me and him", explain-error quoted only the exception line, and the brief named v0.2.2. A summary that has to be cut takes a few seconds longer.
+
+### Long-file work is slow, and next steps guesses
+
+**Status.** Fixed for the next release.
+
+**What was wrong.** Summarizing the README or the roadmap took 33 to 82 seconds, and a PR description 45 to 51. Next steps drafted issues the material didn't support, such as calling a recent fix incomplete.
+
+**Why.** The on-device model reads fast and writes slowly. Reading 2,000 tokens takes about 3 seconds, and writing 300 takes about 10. Running requests in parallel gained 5%, because the model serves one at a time. So the time went to text that was thrown away:
+
+- Each section of a long input was summarized at full length, often with sub-bullets.
+- The combining pass then wrote a long answer, 19 seconds for the README, and the length limit cut most of it.
+- The PR draft fed each file's patch with its unchanged context lines, asked for a one-sentence note on ten files, and listed every other file. The model wrote a bullet for each of those, inventing what it did.
+- Next steps saw only the README and recent commits, so it had nothing real to plan from.
+
+**What changed.**
+
+- With a length limit, section notes are told they are one part of a longer document and to write one-sentence bullets with no sub-bullets. They are capped at 300 tokens, and a last line cut off at the cap is dropped.
+- When the notes already have more bullets than the limit, the most important are picked straight from them, without a combining pass.
+- The bullet limit applies only to bulleted styles and the sentence limit only to prose. A paragraph summary had come back as bullets.
+- PR file notes see only changed lines and hunk headers, up to 4,000 characters. They cover the six largest files in at most 25 words each. Changes get one bullet per note and none for other files, and the title is written from the commit subjects.
+- Next steps reads the repo's `ROADMAP.md`, minus sections marked fixed or shipped (`GitHubWorkflows.openRoadmap`). Each issue must name the item it comes from, come from a different item, and put bugs ahead of polish.
+- `AFM_TRACE=1` logs each model call's time and sizes to stderr.
+
+**Tested.** `afm-selftest` covers dropping a cut-off line and the roadmap filter. Timed with `AFM_TRACE=1` on this branch:
+
+| Task | Before | After |
+| --- | --- | --- |
+| Short summary of the README | 47 s | 30 s |
+| Short paragraph summary of the README | 46 s | 30 s |
+| Short summary of the roadmap | 59 s | 30 s |
+| Medium summary of the roadmap | 82 s | 31 s |
+| PR description of this branch | 51 s | 22 s |
+
+Next steps, run twice, named a roadmap item in every issue both times, and included the Help menu bug.
+
+**Still open.** Next steps sometimes drafts two issues about the same item, or a weak one such as a version check. Summaries of the roadmap still sometimes call planned work done.
+
 ## 1. Self-update from GitHub
 
 **Status.** The first part shipped after 0.1.0. AFM Studio checks GitHub's latest release, when you turn that on or ask, and shows an **Update available** button with the release notes and the steps to update. `afm update check` does the same from Terminal. The build records `AFMSourcePath`, `AFMSourceBranch` and `AFMCommit` in `Info.plist`. `scripts/make-signing-identity.sh` gives builds a stable signature, which settles the Keychain question below. Still to do: one-click **Update and Restart**, `afm update` installing by itself, and `afm update rollback`.

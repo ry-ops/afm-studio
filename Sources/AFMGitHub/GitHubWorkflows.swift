@@ -156,7 +156,7 @@ public enum GitHubWorkflows {
             "x-order": ["type", "priority", "summary", "suggested_labels", "needs_more_info", "missing_info", "reason"],
         ]
         let r = recipe("_gh_triage",
-                       "You triage GitHub issues and pull requests for a maintainer. Judge priority by user impact. Only suggest labels from the allowed list.",
+                       "You triage GitHub issues and pull requests for a maintainer. Judge priority by user impact. Only suggest labels from the allowed list. Type is what the item changes or asks for: new or improved behavior is a feature, broken behavior is a bug. A title that starts with feat:, fix:, docs: or chore: states its type. Never describe user feelings the text doesn't state.",
                        "Triage this item.\(labels.isEmpty ? "" : " Allowed labels: \(labels.joined(separator: ", ")).")\n\n{{input}}",
                        schema: JSONSchemaConverter.jsonText(schema), long: .merge, temperature: 0.1)
         onProgress?("Triaging on device")
@@ -208,12 +208,14 @@ public enum GitHubWorkflows {
     // MARK: PR descriptions
 
     static let prRecipe = recipe("_gh_pr",
-        "You write clear, honest pull request descriptions for reviewers. Use only the material given. Never invent tests or results.",
-        "Write a pull request description in Markdown with three sections: \"## Summary\" (two or three sentences), \"## Changes\" (bullet points), and \"## Testing\" (how to verify; write \"Not stated\" if the material doesn't say).\n\n{{input}}")
+        "You write clear, honest pull request descriptions for reviewers. Use only the material given. Never invent tests or results, and never describe a file the material doesn't explain. Call it a pull request or this change, not a release.",
+        "Write a pull request description in Markdown with three sections: \"## Summary\" (two or three sentences), \"## Changes\" (one bullet point per entry under \"What each file's change does\", and none for any other file), and \"## Testing\" (how to verify; if the material doesn't say, write only \"Not stated\").\n\n{{input}}")
 
     static func titleFor(_ commits: [String], body: String) async -> String {
         if commits.count == 1, let s = commits.first?.split(separator: "\n").first { return String(s) }
-        let t = (try? await AFM.generate("Write one pull request title, under 70 characters, imperative mood, no quotes, for this description:\n\n" + clip(body, 1500),
+        // The commit subjects say what the branch is for; the description alone gave titles about one detail.
+        let subjects = commits.prefix(12).compactMap { $0.split(separator: "\n").first.map { "- \($0)" } }.joined(separator: "\n")
+        let t = (try? await AFM.generate("Write one pull request title, under 70 characters, imperative mood, no quotes, that covers the whole branch.\n\nCommits:\n\(subjects)\n\nDescription:\n" + clip(body, 1200),
                                          options: GenOptions(temperature: 0.2, maxTokens: 40), config: ModelConfig(guardrails: .permissive))) ?? "Update"
         return t.split(separator: "\n").first.map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\"' #")) } ?? "Update"
     }
@@ -228,17 +230,26 @@ public enum GitHubWorkflows {
     }
 
     /// One sentence per changed file (largest first, up to `limit`), so the final description sees every file.
-    static func fileNotes(_ patches: [(String, String)], limit: Int = 10, onProgress: Progress?) async throws -> String {
-        let ranked = patches.sorted { $0.1.count > $1.1.count }
+    /// A patch without its unchanged context lines: the hunk headers and the lines added or removed.
+    /// Reading is cheap for the model but not free, and context lines are most of a patch.
+    public static func changedLines(_ patch: String) -> String {
+        patch.split(separator: "\n", omittingEmptySubsequences: false).filter { l in
+            !(l.hasPrefix(" ") || l.hasPrefix("index ") || l.hasPrefix("--- ") || l.hasPrefix("+++ ") || l == "\\ No newline at end of file")
+        }.joined(separator: "\n")
+    }
+
+    static func fileNotes(_ patches: [(String, String)], limit: Int = 6, onProgress: Progress?) async throws -> String {
+        let ranked = patches.map { ($0.0, changedLines($0.1)) }.sorted { $0.1.count > $1.1.count }
         var notes: [String] = []
         for (i, p) in ranked.prefix(limit).enumerated() {
             onProgress?("Reading \(p.0) (\(i + 1) of \(min(limit, ranked.count)))")
-            let s = try await AFM.generate("In one sentence, what does this change to \(p.0) do? Name concrete functions, settings or behavior.\n\n" + clip(p.1, 7000),
+            let s = try await AFM.generate("In one short sentence of at most 25 words, what does this change to \(p.0) do? Name concrete functions, settings or behavior in plain words, without quoting code. Lines starting with + were added and - removed.\n\n" + clip(p.1, 4000),
                                            instructions: "You explain code changes to reviewers. One factual sentence. No preamble.",
-                                           options: GenOptions(temperature: 0.1, maxTokens: 90), config: ModelConfig(guardrails: .permissive))
+                                           options: GenOptions(temperature: 0.1, maxTokens: 70), config: ModelConfig(guardrails: .permissive))
             notes.append("- \(p.0): \(s.trimmingCharacters(in: .whitespacesAndNewlines))")
         }
-        if ranked.count > limit { notes.append("- Also changed: " + ranked.dropFirst(limit).map(\.0).joined(separator: ", ")) }
+        // Listing the rest here made the model write a bullet for each with an invented description.
+        // They still appear under "Files changed".
         return notes.joined(separator: "\n")
     }
 
@@ -358,11 +369,23 @@ public enum GitHubWorkflows {
             highlights = try await AFM.generate("Write two sentences highlighting the most important changes in these release notes. Restate only what the notes say; add nothing.\n\n" + clip(body, 6000),
                                                 instructions: "You write crisp release highlights. Never mention anything that isn't in the notes.",
                                                 options: GenOptions(temperature: 0.2, maxTokens: 160), config: ModelConfig(guardrails: .permissive))
+            if !isProseHighlight(highlights) { highlights = "" }
         }
         let header = "## Release notes\(fromRef.map { " (\($0) → \(to))" } ?? "")\n" + (highlights.isEmpty ? "" : "\n\(highlights.trimmingCharacters(in: .whitespacesAndNewlines))\n")
         let res = GenerationResult(text: header + body, seconds: Date().timeIntervalSince(start))
         log(source, "github.release-notes", slug ?? local?.path ?? "", subjects.joined(separator: "\n"), res)
         return res
+    }
+
+    /// Asked for two sentences, the model sometimes copies the notes (headings and bullets),
+    /// which then printed every section twice. Only plain prose of a few sentences is kept.
+    public static func isProseHighlight(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty, t.count <= 600 else { return false }
+        return !t.split(separator: "\n").contains { line in
+            let l = line.trimmingCharacters(in: .whitespaces)
+            return l.hasPrefix("#") || l.hasPrefix("- ") || l.hasPrefix("* ")
+        }
     }
 
     // MARK: Repo brief and next steps
@@ -372,8 +395,11 @@ public enum GitHubWorkflows {
         let readme = (try? await gh.readme(slug)) ?? ""
         let commits = (try? await gh.commits(slug, limit: 15)) ?? []
         let open = (try? await gh.openIssues(slug, limit: 40)) ?? []
+        let release = try? await gh.latestRelease(slug)
         var m = "Repository \(repo.fullName)\(repo.private ? " (private)" : "")\(repo.archived ? " (archived)" : "")\n"
         m += "Description: \(repo.description ?? "none") · Language: \(repo.language ?? "?") · Stars: \(repo.stargazersCount) · Last push: \(repo.pushedAt?.prefix(10) ?? "?")\n"
+        // Without this the model called a "release: x.y" commit the stable release, though it was never published.
+        m += "Latest published release: " + (release.map { "\($0.tagName) (\($0.publishedAt?.prefix(10) ?? "date unknown"))" } ?? "none") + "\n"
         m += "\nRecent commits:\n" + commits.map { "- \($0.commit.author?.date?.prefix(10) ?? "") \($0.subject)" }.joined(separator: "\n")
         let prs = open.filter(\.isPR), issues = open.filter { !$0.isPR }
         m += "\n\nOpen pull requests (\(prs.count)):\n" + prs.prefix(15).map { "- #\($0.number) \($0.title)" }.joined(separator: "\n")
@@ -387,7 +413,7 @@ public enum GitHubWorkflows {
         onProgress?("Reading \(slug)")
         let (_, _, material) = try await repoMaterial(gh, slug, readmeChars: 6000)
         let r = recipe("_gh_brief",
-                       "You brief an engineer on a software project. Be concrete and honest about its state. Use only the material given.",
+                       "You brief an engineer on a software project. Be concrete and honest about its state. Use only the material given. The latest release is the one the material lists as published; a commit that mentions a release is not one.",
                        "Write a project brief in Markdown with these sections: \"## What it is\", \"## Current state\", \"## Recent activity\", \"## Open work\", and \"## Suggested next steps\" (three to five bullets).\n\n{{input}}")
         onProgress?("Writing the brief on device")
         let res = try await RecipeRunner.run(r, input: material, onPartial: onPartial, onProgress: { p in onProgress?(p.stage) })
@@ -395,11 +421,28 @@ public enum GitHubWorkflows {
         return res
     }
 
+    /// The parts of a roadmap that aren't done: sections whose status says shipped or fixed are left
+    /// out, so the model plans from open work rather than re-proposing finished work.
+    public static func openRoadmap(_ text: String) -> String {
+        let parts = text.components(separatedBy: "\n### ").flatMap { $0.components(separatedBy: "\n## ") }
+        return parts.filter { part in
+            guard let status = part.range(of: "**Status.**") else { return true }
+            let line = part[status.upperBound...].prefix { $0 != "\n" }.lowercased()
+            return !(line.contains("fixed") || line.contains("shipped") || line.contains("added for") || line.contains("done"))
+                || line.contains("still to do") || line.contains("except")
+        }.joined(separator: "\n\n")
+    }
+
     /// Drafts up to five issues for sensible next steps. Opening them is up to you.
     public static func nextSteps(_ slug: String, focus: String? = nil, source: String = "studio", onProgress: Progress? = nil) async throws -> [IssueDraft] {
         let gh = try GitHubClient.make()
         onProgress?("Reading \(slug)")
-        let (_, _, material) = try await repoMaterial(gh, slug, readmeChars: 3000)
+        var (_, _, material) = try await repoMaterial(gh, slug, readmeChars: 3000)
+        // Without the project's own plans the model guessed, calling recent fixes "incomplete". A
+        // roadmap's open items give it real next steps to draft.
+        if let roadmap = try? await gh.file(slug, path: "ROADMAP.md"), !roadmap.isEmpty {
+            material += "\n\nROADMAP.md (the project's own plans):\n" + clip(Self.openRoadmap(roadmap), 3500)
+        }
         let labels = (try? await gh.labels(slug))?.map(\.name).prefix(40).map { $0 } ?? []
         var labelSchema: [String: Any] = ["type": "string"]
         if !labels.isEmpty { labelSchema["enum"] = labels }
@@ -417,7 +460,7 @@ public enum GitHubWorkflows {
             "required": ["issues"],
         ]
         let r = recipe("_gh_next",
-                       "You plan practical next steps for a software project. Don't duplicate work that is already in an open issue or pull request.",
+                       "You plan practical next steps for a software project. Base every issue on one specific item in the material, such as a roadmap item that isn't done, an open issue, or a limit the README states, and name that item in the body. Each issue comes from a different item. Put known bugs first, then unfinished features; skip cosmetic tweaks such as wording or icons. Fewer good issues beat five weak ones. Never claim that existing work is broken or incomplete unless the material says so. Don't duplicate work that is already in an open issue or pull request. Name a file, folder or path only if it appears in the material. Suggest documentation work only when an issue asks for it or the material shows the topic is missing; never for something the README already covers.",
                        "Suggest up to five next-step issues for this project\(focus.map { ", focused on: \($0)" } ?? "").\n\n{{input}}",
                        schema: JSONSchemaConverter.jsonText(schema), long: .merge, temperature: 0.4)
         onProgress?("Planning on device")
