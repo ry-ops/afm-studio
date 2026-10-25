@@ -140,10 +140,17 @@ public final class MCPServer: @unchecked Sendable {
         }
     }
 
-    func chat(_ id: String) -> ChatEngine {
+    /// Opens an MCP chat. Claude may only continue chats that were started over MCP, so it can't
+    /// read or rewrite chats from the app or Terminal, and MCP chats never get file or web tools.
+    func chat(_ id: String) throws -> ChatEngine {
         chatLock.lock(); defer { chatLock.unlock() }
         if let c = chats[id] { return c }
+        if let existing = SessionStore.shared.load(id), existing.source != "mcp" {
+            throw AFMError(code: "chat_not_shared", message: "Chat \(id) was started outside Claude, so it can't be continued here.",
+                           suggestion: "Omit session_id to start a new chat.")
+        }
         let c = ChatEngine.open(id: id, source: "mcp")
+        c.allowSensitiveTools = false
         chats[id] = c
         return c
     }

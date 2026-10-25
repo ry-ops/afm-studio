@@ -9,24 +9,67 @@ public struct HTTPRequest {
     var headers: [String: String]
     var body: Data
 
-    /// Returns nil until the full request (headers + Content-Length body) has arrived.
+    public enum Parse {
+        case incomplete
+        case invalid(status: Int, message: String)
+        case complete(HTTPRequest)
+    }
+
+    public static let maxBody = 16_000_000
+
+    /// Returns nil until the full request (headers + Content-Length body) has arrived, or when it's malformed.
     public static func parse(_ buf: Data) -> HTTPRequest? {
-        guard let range = buf.range(of: Data("\r\n\r\n".utf8)) else { return nil }
+        if case .complete(let r) = inspect(buf) { return r }
+        return nil
+    }
+
+    public static func inspect(_ buf: Data) -> Parse {
+        guard let range = buf.range(of: Data("\r\n\r\n".utf8)) else {
+            return buf.count > 64_000 ? .invalid(status: 431, message: "Request headers too large") : .incomplete
+        }
         let head = String(decoding: buf[..<range.lowerBound], as: UTF8.self)
         var lines = head.components(separatedBy: "\r\n")
-        guard !lines.isEmpty else { return nil }
+        guard !lines.isEmpty else { return .invalid(status: 400, message: "Empty request") }
         let parts = lines.removeFirst().split(separator: " ")
-        guard parts.count >= 2 else { return nil }
+        guard parts.count >= 2 else { return .invalid(status: 400, message: "Malformed request line") }
         var headers: [String: String] = [:]
         for l in lines {
             guard let i = l.firstIndex(of: ":") else { continue }
             headers[l[..<i].lowercased().trimmingCharacters(in: .whitespaces)] = l[l.index(after: i)...].trimmingCharacters(in: .whitespaces)
         }
-        let len = Int(headers["content-length"] ?? "0") ?? 0
+        if headers["transfer-encoding"] != nil { return .invalid(status: 400, message: "Chunked request bodies aren't supported; send Content-Length") }
+        let rawLen = headers["content-length"] ?? "0"
+        guard let len = Int(rawLen), len >= 0 else { return .invalid(status: 400, message: "Invalid Content-Length") }
+        guard len <= maxBody else { return .invalid(status: 413, message: "Request too large") }
         let bodyStart = range.upperBound
-        guard buf.count - bodyStart >= len else { return nil }
+        guard buf.count - bodyStart >= len else { return .incomplete }
         let path = String(parts[1]).components(separatedBy: "?")[0]
-        return HTTPRequest(method: String(parts[0]).uppercased(), path: path, headers: headers, body: buf.subdata(in: bodyStart..<(bodyStart + len)))
+        return .complete(HTTPRequest(method: String(parts[0]).uppercased(), path: path, headers: headers, body: buf.subdata(in: bodyStart..<(bodyStart + len))))
+    }
+
+    /// Host values a browser sends only when it really talks to this machine. Anything else is
+    /// a DNS-rebinding attempt: a website whose name was pointed at 127.0.0.1.
+    public static func isLocalHost(_ host: String?) -> Bool {
+        guard let host, !host.isEmpty else { return true } // HTTP/1.0 clients may omit it; browsers never do
+        var h = host.lowercased()
+        if h.hasPrefix("[") { h = String(h.prefix { $0 != "]" }.dropFirst()) }
+        else if let colon = h.lastIndex(of: ":") { h = String(h[..<colon]) }
+        return h == "127.0.0.1" || h == "localhost" || h == "::1"
+    }
+
+    /// Requests from web pages carry Origin. Only pages served from this machine may call the server.
+    public static func isLocalOrigin(_ origin: String?) -> Bool {
+        guard let origin, origin != "null" else { return origin == nil }
+        guard let host = URLComponents(string: origin)?.host else { return false }
+        return isLocalHost(host)
+    }
+
+    /// Constant-time comparison so the token can't be guessed byte by byte from response timing.
+    public static func tokenMatches(_ header: String?, _ token: String) -> Bool {
+        let a = Array((header ?? "").utf8), b = Array("Bearer \(token)".utf8)
+        var diff = UInt8(a.count == b.count ? 0 : 1)
+        for i in 0..<b.count { diff |= b[i] ^ (i < a.count ? a[i] : 0) }
+        return diff == 0
     }
 
     var json: [String: Any] { (try? JSONSerialization.jsonObject(with: body)) as? [String: Any] ?? [:] }
@@ -43,6 +86,9 @@ public final class OpenAIServer: @unchecked Sendable {
     private var listener: NWListener?
     private let queue = DispatchQueue(label: "afm.http")
     private let gate = ModelGate()
+    /// Touched only on `queue`.
+    private var openConnections = 0
+    public static let maxConnections = 32
     public static let models = ["apple-foundation-model", "apple-foundation-model-permissive", "apple-foundation-model-tagging"]
 
     public init(port: UInt16 = 11535, token: String? = nil) {
@@ -89,6 +135,16 @@ public final class OpenAIServer: @unchecked Sendable {
     func log(_ s: String) { onLog?(s) }
 
     private func accept(_ c: NWConnection) {
+        guard openConnections < Self.maxConnections else { c.cancel(); return }
+        openConnections += 1
+        var counted = true
+        c.stateUpdateHandler = { [weak self] state in
+            switch state {
+            case .cancelled, .failed:
+                if counted { counted = false; self?.openConnections -= 1 }
+            default: break
+            }
+        }
         c.start(queue: queue)
         receive(c, Data())
     }
@@ -98,11 +154,16 @@ public final class OpenAIServer: @unchecked Sendable {
             guard let self else { return }
             var buf = buffer
             if let data { buf.append(data) }
-            if let req = HTTPRequest.parse(buf) {
+            switch HTTPRequest.inspect(buf) {
+            case .complete(let req):
                 Task { await self.route(req, c) }
                 return
+            case .invalid(let status, let message):
+                self.error(c, status, message, code: "invalid_request")
+                return
+            case .incomplete:
+                break
             }
-            if buf.count > 16_000_000 { self.respond(c, 413, ["error": ["message": "Request too large"]]); return }
             if done || err != nil { c.cancel(); return }
             self.receive(c, buf)
         }
@@ -116,7 +177,7 @@ public final class OpenAIServer: @unchecked Sendable {
 
     private func respond(_ c: NWConnection, _ status: Int, _ obj: Any) {
         let body = JSONValue.encode(obj)
-        let reason = [200: "OK", 204: "No Content", 400: "Bad Request", 401: "Unauthorized", 404: "Not Found", 413: "Payload Too Large", 500: "Internal Server Error", 503: "Service Unavailable"][status] ?? "OK"
+        let reason = [200: "OK", 204: "No Content", 400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found", 413: "Payload Too Large", 415: "Unsupported Media Type", 431: "Request Header Fields Too Large", 500: "Internal Server Error", 503: "Service Unavailable"][status] ?? "OK"
         let head = "HTTP/1.1 \(status) \(reason)\r\nContent-Type: application/json\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n"
         raw(c, Data(head.utf8) + body, close: true)
     }
@@ -129,8 +190,15 @@ public final class OpenAIServer: @unchecked Sendable {
 
     private func route(_ r: HTTPRequest, _ c: NWConnection) async {
         log("\(r.method) \(r.path)")
+        // Web pages must not be able to drive the model: refuse rebinding hosts and foreign origins,
+        // and require a JSON body so a cross-site "simple" POST (text/plain, form data) is rejected.
+        guard HTTPRequest.isLocalHost(r.headers["host"]) else { return error(c, 403, "Host \(r.headers["host"] ?? "") isn't allowed; use 127.0.0.1 or localhost", code: "forbidden_host") }
+        guard HTTPRequest.isLocalOrigin(r.headers["origin"]) else { return error(c, 403, "Cross-origin requests aren't allowed", code: "forbidden_origin") }
+        if r.method == "POST", !(r.headers["content-type"] ?? "").lowercased().hasPrefix("application/json") {
+            return error(c, 415, "Send the body as JSON with Content-Type: application/json", code: "unsupported_media_type")
+        }
         if let token, r.path != "/health" {
-            guard r.headers["authorization"] == "Bearer \(token)" else { return error(c, 401, "Missing or wrong bearer token", code: "unauthorized") }
+            guard HTTPRequest.tokenMatches(r.headers["authorization"], token) else { return error(c, 401, "Missing or wrong bearer token", code: "unauthorized") }
         }
         switch (r.method, r.path) {
         case ("GET", "/"), ("GET", "/health"):

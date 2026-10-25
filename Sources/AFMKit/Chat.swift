@@ -92,6 +92,11 @@ public final class ChatEngine: @unchecked Sendable {
     private var model: SystemLanguageModel?
     private let store: SessionStore
     public var persist: Bool
+    /// When false, file and network tools are left out of the session even if the saved chat has them on.
+    /// The MCP server sets this, so a chat reached from Claude never reads files or fetches pages.
+    public var allowSensitiveTools = true {
+        didSet { if oldValue != allowSensitiveTools { session = nil } }
+    }
 
     public init(record: ChatSessionRecord, store: SessionStore = .shared, persist: Bool = true) {
         self.record = record
@@ -135,7 +140,7 @@ public final class ChatEngine: @unchecked Sendable {
         let m = try record.config.makeModel()
         guard m.isAvailable else { throw AFMError.unavailable(.current()) }
         model = m
-        var tools = ToolRegistry.make(record.tools, tracker: tracker)
+        var tools = ToolRegistry.make(allowSensitiveTools ? record.tools : record.tools.filter { !$0.isSensitive }, tracker: tracker)
         let allowed = IntegrationRegistry.chatEnabled
         for id in record.integrations ?? [] {
             if let integ = allowed.first(where: { $0.id == id }) { tools += integ.modelTools(tracker: tracker) }

@@ -10,7 +10,7 @@ struct ToolOutput {
 enum MCPTools {
     static let textProps: [String: Any] = [
         "text": ["type": "string", "description": "The text to process. Give this or `path`."],
-        "path": ["type": "string", "description": "Path to a text file in the user's home folder (e.g. ~/notes/meeting.txt). It is read locally, so the content never enters your context."],
+        "path": ["type": "string", "description": "Path to a text file in the user's home folder (e.g. ~/notes/meeting.txt). It is read locally, so the content never enters your context. Key, credential and .env files are refused."],
     ]
 
     static func def(_ name: String, _ title: String, _ desc: String, _ props: [String: Any] = [:], required: [String] = [],
@@ -190,7 +190,7 @@ enum MCPTools {
 
         case "afm_chat":
             let sid = a.str("session_id").flatMap { $0.isEmpty ? nil : $0 } ?? "mcp-" + String(UUID().uuidString.prefix(8)).lowercased()
-            let engine = server.chat(sid)
+            let engine = try server.chat(sid)
             if a.bool("reset") == true { engine.reset() }
             let instr = a.str("instructions")
             let opts = options(a)

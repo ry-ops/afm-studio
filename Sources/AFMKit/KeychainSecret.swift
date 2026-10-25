@@ -1,7 +1,12 @@
 import Foundation
 import Security
 
-/// A secret kept in the macOS login Keychain ("this device only"). Never written to a file.
+/// A secret kept in the macOS login Keychain. Never written to a file.
+///
+/// The item lives in the file-based login Keychain, which the login password protects. Its access
+/// list trusts the program that created it, so other apps trigger a Keychain prompt. The newer
+/// data-protection keychain would make the item "this device only", but it needs a signed app with
+/// keychain entitlements, and the ad-hoc signed CLI gets errSecMissingEntitlement (-34018).
 public struct KeychainSecret: Sendable {
     public let service: String
     public let label: String
@@ -24,7 +29,6 @@ public struct KeychainSecret: Sendable {
         var add = query
         add[kSecValueData as String] = Data(value.utf8)
         add[kSecAttrLabel as String] = label
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw AFMError(code: "keychain", message: "Couldn't save to the Keychain (\(status)).") }
     }

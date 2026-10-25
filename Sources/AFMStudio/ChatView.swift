@@ -345,6 +345,9 @@ struct ChatInspector: View {
                         Label { VStack(alignment: .leading) { Text(t.title); Text(t.summary).font(.caption).foregroundStyle(.secondary) } } icon: { Image(systemName: t.symbol) }
                     }
                 }
+                if let w = ToolKind.riskWarning(vm.tools) {
+                    Label(w, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                }
             }
             Section("Integrations") {
                 if IntegrationRegistry.chatEnabled.isEmpty {

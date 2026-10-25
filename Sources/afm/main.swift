@@ -99,6 +99,7 @@ func parseArgs(_ raw: [String]) -> Args {
             fail("unknown option \(arg)", hint: "Run `afm --help`.", code: 2)
         }
     }
+    if let w = ToolKind.riskWarning(a.tools) { eprint(paint("afm: warning: ", "33", tty: stderrTTY) + w) }
     return a
 }
 

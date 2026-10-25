@@ -4,7 +4,7 @@
 
 ![Recipes](docs/images/recipes.png)
 
-The model is the roughly 3-billion-parameter model behind Apple Intelligence. It runs on the Mac itself. It's free and works offline, and nothing you send it leaves the machine.
+The model is the roughly 3-billion-parameter model behind Apple Intelligence. It runs on the Mac itself. It's free and works offline, and what you send the model stays on your Mac. A few features use the network on purpose, and each one is off until you turn it on. [Security and privacy](#security-and-privacy) lists them.
 
 ## What's inside
 
@@ -95,15 +95,18 @@ afm claude unhook    # remove both registrations
 | `afm_recipes`, `afm_run_recipe` | Run any recipe, including your own. |
 | `afm_count_tokens`, `afm_status` | Tokenizer and model status. |
 
-Most tools accept `path` instead of `text`. With `path`, Claude can have a 50-page file summarized without reading it into its own context. File access is limited to your home folder. Set `AFM_ALLOWED_PATHS` (colon-separated) to allow other folders.
+Most tools accept `path` instead of `text`. With `path`, Claude can have a 50-page file summarized without reading it into its own context. File access is limited to your home folder. Set `AFM_ALLOWED_PATHS` (colon-separated) to allow other folders. Key and credential files are always refused, wherever they are. [Security and privacy](#security-and-privacy) lists them.
+
+`afm_chat` keeps its own conversations. Claude can continue only chats it started, never ones from the app or Terminal. Its chats never get the file or web tools.
 
 ### Your Anthropic API key
 
-The key is stored in the macOS login Keychain as a "this device only" item. It is never written to the repo, the settings file or any other file. You can add it in the app's Claude section, or from Terminal:
+The key is stored in your macOS login Keychain, which your login password protects. It is never written to the repo, the settings file or any other file. The Keychain trusts the program that saved the key. Other programs, and AFM Studio after a rebuild, have to ask you before they can read it. You can add the key in the app's Claude section, or from Terminal:
 
 ```bash
 afm claude key set           # paste the key when prompted (input is hidden), or pipe it in
 afm claude key status        # shows where the key comes from, masked
+afm claude key rm            # removes it from the Keychain
 afm claude "Review this plan" --model claude-opus-5-5 --effort high
 afm claude compare "Explain mutexes vs semaphores"   # on-device vs Claude, with cost
 ```
@@ -139,7 +142,7 @@ Read-only, drafts only. The on-device model does the reading and writing; AFM St
 | Up to five next-step issue drafts | `afm github next owner/repo` | `afm_github_next_steps` |
 | Blog post drafts in your blog repo's format | `afm github blog draft "topic" --from-repo owner/repo` | `afm_github_blog_draft` |
 
-**Sign-in.** A GitHub token in the Keychain wins (`afm github auth set`, or the app's GitHub > Account tab). Otherwise AFM Studio borrows your `gh` login, then `GITHUB_TOKEN`. A fine-grained, read-only token is the tightest option.
+**Sign-in.** A GitHub token in the Keychain wins (`afm github auth set`, or the app's GitHub > Account tab). Otherwise AFM Studio borrows your `gh` login, then `GITHUB_TOKEN` or `GH_TOKEN`. A fine-grained, read-only token is the tightest option. `afm github auth rm` removes the Keychain token.
 
 **Blog drafts.** `afm github blog setup owner/blog-repo` reads the repo once and learns where posts live, the frontmatter author, the allowed categories, and any "Writing Style" section in its docs. That setup stays on this Mac. Drafts are saved as Markdown with matching frontmatter. The on-device writer plans an outline and then writes each part, because a whole post won't fit in its context. It can still get facts wrong, so give it good notes and read the result. With an Anthropic key you can pick Claude as the writer instead.
 
@@ -160,7 +163,19 @@ r = client.chat.completions.create(model="apple-foundation-model",
 
 The server offers three models. `apple-foundation-model` uses the default guardrails. `apple-foundation-model-permissive` uses looser guardrails for transforming your own text. `apple-foundation-model-tagging` uses Apple's content-tagging model.
 
-It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `response_format` with `json_schema` or `json_object`. It also serves `GET /afm/recipes` and `POST /afm/recipes/{id}`. The server only listens on `127.0.0.1` and sends no CORS headers. `--token` adds bearer-token auth.
+It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `response_format` with `json_schema` or `json_object`. It also serves `GET /afm/recipes` and `POST /afm/recipes/{id}`.
+
+The server listens only on `127.0.0.1`. Web pages from other sites can't use it:
+
+- **Host check.** It answers only requests addressed to `127.0.0.1` or `localhost`. That stops DNS rebinding, where a website points its own name at your Mac.
+- **Origin check.** It refuses requests from web pages served by any other site, and it sends no CORS headers.
+- **JSON only.** `POST` bodies must be sent as `Content-Type: application/json`. Browsers can't send that cross-site without asking first, and the server refuses to answer. With `curl`, add `-H 'Content-Type: application/json'`.
+
+Any program running as you on this Mac can still call the server. Add `--token <secret>` to require `Authorization: Bearer <secret>`. Clients then pass the secret as their API key.
+
+```bash
+afm serve --port 11535 --token "$(openssl rand -hex 16)"
+```
 
 ## Know the model
 
@@ -168,6 +183,67 @@ It supports `stream`, `temperature`, `top_p`, `seed`, `max_tokens`, and `respons
 - **Not good at:** world knowledge, multi-step math, long reasoning and writing code. Treat its output as a draft. The calculator tool exists because the model alone gets arithmetic wrong.
 - **Context:** 4,096 tokens for instructions, prompt and reply combined. AFM Studio works around this with chunking and chat compaction.
 - **Guardrails:** Apple's safety filter sometimes blocks harmless prompts. The permissive mode, `--permissive`, helps when you're transforming text you supplied.
+
+## Security and privacy
+
+**What leaves your Mac.** Prompts to the on-device model never do. These features use the network, and each one starts off:
+
+| Feature | Talks to | Turned on by |
+| --- | --- | --- |
+| Fetch web page tool | the URL the model picks | each chat, or `--tool fetch_url` |
+| GitHub integration | `api.github.com` | Integrations, then the GitHub switch |
+| Claude features | `api.anthropic.com` | adding an Anthropic API key |
+| Blog drafts written by Claude | `api.anthropic.com` | choosing Claude as the writer |
+
+**Files the model and Claude can't read.** The file tools and the MCP `path` argument read only from your home folder and any `AFM_ALLOWED_PATHS` folders. Inside those, these are always refused:
+
+- **Folders:** `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.azure`, `~/.kube`, `~/.docker`, `~/.config/gh`, `~/.config/gcloud`, `~/.config/op`, `~/.claude`, `~/.password-store`, `~/Library/Keychains`, `~/Library/Cookies`, `~/Library/Mail`, `~/Library/Messages`, Claude Desktop's settings, and AFM Studio's own data folder.
+- **Files anywhere:** `.env` and `.env.*`, `.netrc`, `.npmrc`, `.pypirc`, `.git-credentials`, `.pgpass`, `.my.cnf`, `.claude.json`, `credentials` files, and SSH private keys.
+- **Extensions:** `.pem`, `.key`, `.p12`, `.pfx`, `.keychain`, `.keychain-db`, `.kdbx` and `.ovpn`.
+
+**Web fetches stay on the public internet.** `fetch_url` refuses local and private addresses, and it checks every redirect too. That covers `localhost`, your home network, `.local` names and cloud metadata addresses. A page the model reads can't send it to your router or to local services. Set `AFM_FETCH_ALLOW_PRIVATE=1` if you want it to reach your own network.
+
+**Tool combinations.** A chat with both a file tool and Fetch web page on gets a warning. A file or web page with hidden instructions could make the model read a file and send it to a website in a URL. Turn on both only when you trust everything the model will read.
+
+**Local data.** Chats, history, recipes and settings are stored unencrypted in `~/Library/Application Support/AFMStudio`. History keeps the first 4,000 characters of each input. Turn history off in Settings, or set `AFM_NO_HISTORY=1`.
+
+**Reporting a problem.** See [SECURITY.md](SECURITY.md).
+
+## Environment variables
+
+| Variable | What it does |
+| --- | --- |
+| `AFM_HOME` | Stores chats, recipes, history and settings in another folder. |
+| `AFM_ALLOWED_PATHS` | Extra folders the file tools and MCP `path` may read, separated by colons. |
+| `AFM_FETCH_ALLOW_PRIVATE` | Set to `1` to let `fetch_url` reach local and private addresses. |
+| `AFM_NO_HISTORY` | Set to `1` to skip writing history. |
+| `AFM_DEBUG` | Set to `1` to print full underlying errors to stderr. |
+| `AFM_INSTALL_DIR` | Where `scripts/install.sh` links `afm`. The default is `~/.local/bin`. |
+| `ANTHROPIC_API_KEY` | Fallback Anthropic key when the Keychain has none. |
+| `GITHUB_TOKEN`, `GH_TOKEN` | Fallback GitHub tokens after the Keychain and `gh`. |
+| `NO_COLOR` | Turns off colored terminal output. |
+
+## Troubleshooting
+
+- **Apple Intelligence is off.** Turn it on in System Settings > Apple Intelligence & Siri. Then run `afm status`.
+- **The model is still preparing.** It downloads after Apple Intelligence is first turned on. Wait a few minutes and try again.
+- **A harmless prompt is blocked.** Apple's guardrails sometimes misfire. Try `--permissive` when you're transforming your own text.
+- **The input is larger than the context window.** The model has 4,096 tokens in total. Use a recipe, which chunks long input, or check the size with `afm tokens`.
+- **A Keychain prompt after rebuilding.** Each ad-hoc build is a new program to the Keychain. Choose Always Allow, or save the key again.
+- **Claude doesn't list the afm tools.** Run `afm claude status`, then restart Claude Code or Claude Desktop.
+- **The API server answers with 403 or 415.** Use `127.0.0.1` or `localhost` in the URL, and send `Content-Type: application/json`.
+- **`fetch_url` says an address is private.** That's the network guard. Set `AFM_FETCH_ALLOW_PRIVATE=1` if you meant to reach your own network.
+
+## Uninstall
+
+```bash
+afm claude unhook                     # remove the MCP registration from Claude Code and Claude Desktop
+afm claude key rm                     # delete the Anthropic key from the Keychain
+afm github auth rm                    # delete the GitHub token from the Keychain
+rm -rf ~/Applications/"AFM Studio.app" ~/.local/bin/afm ~/.local/share/afm-studio
+rm -rf ~/Library/Application\ Support/AFMStudio            # chats, history, recipes and settings
+rm -f ~/Library/Application\ Support/Claude/claude_desktop_config.afm-backup.json
+```
 
 ## Project layout
 
@@ -190,3 +266,7 @@ swift run afm-selftest --offline  # skip the live check
 The self-test is a plain executable because Swift Testing doesn't run under the Command Line Tools alone. It needs no Xcode.
 
 Data such as chats, recipes, history and settings lives in `~/Library/Application Support/AFMStudio`. Set `AFM_HOME` to use a different folder.
+
+## License
+
+AFM Studio is released under the [MIT License](LICENSE).

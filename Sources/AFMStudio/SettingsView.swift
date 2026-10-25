@@ -32,6 +32,9 @@ struct SettingsView: View {
                             if on { app.settings.defaultTools.append(t) } else { app.settings.defaultTools.removeAll { $0 == t } }
                         }))
                     }
+                    if let w = ToolKind.riskWarning(app.settings.defaultTools) {
+                        Label(w, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
+                    }
                 }
             }
             .tabItem { Label("Defaults", systemImage: "slider.horizontal.3") }

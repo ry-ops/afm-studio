@@ -26,7 +26,7 @@ public enum ToolKind: String, Codable, CaseIterable, Sendable, Identifiable, Has
         case .datetime: "Current date, time and time zone conversion."
         case .calculator: "Exact arithmetic, so the model doesn't guess at math."
         case .systemInfo: "macOS version, memory, CPU count, uptime."
-        case .readFile: "Reads a text file in your home folder (first 6,000 characters)."
+        case .readFile: "Reads a text file in your home folder (first 6,000 characters). Key and credential files are off limits."
         case .listDirectory: "Lists a folder in your home folder."
         case .fetchURL: "Downloads a web page and returns its text. Uses the network."
         }
@@ -45,6 +45,13 @@ public enum ToolKind: String, Codable, CaseIterable, Sendable, Identifiable, Has
     public var isSensitive: Bool { self == .readFile || self == .listDirectory || self == .fetchURL }
     public static var safeDefaults: [ToolKind] { [.datetime, .calculator] }
     public static var safe: [ToolKind] { [.datetime, .calculator, .systemInfo] }
+
+    /// A warning when the chosen tools could let a prompt injection read a file and then send it out.
+    public static func riskWarning(_ tools: some Sequence<ToolKind>) -> String? {
+        let set = Set(tools)
+        guard set.contains(.fetchURL), set.contains(.readFile) || set.contains(.listDirectory) else { return nil }
+        return "File tools and Fetch web page are both on. A web page or file could tell the model to read a file and send it to a website in a URL. Turn one off unless you trust everything the model will read."
+    }
 }
 
 /// Records tool calls so callers can show them.
@@ -181,7 +188,36 @@ public enum FileAccess {
             throw AFMError(code: "forbidden", message: "Only files inside your home folder can be read.",
                            suggestion: "Set AFM_ALLOWED_PATHS to allow other folders.")
         }
+        if isSensitive(url) {
+            throw AFMError(code: "sensitive_path", message: "\(path) may hold credentials or private app data, so it can't be read by the model or by Claude.",
+                           suggestion: "Copy the part you need into a normal file, or paste it as text.")
+        }
         return url
+    }
+
+    /// Folders under your home folder that hold keys, tokens, cookies or AFM Studio's own data.
+    public static let sensitiveDirectories = [
+        ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".config/gh", ".config/gcloud", ".config/op",
+        ".claude", ".password-store", "Library/Keychains", "Library/Cookies", "Library/Mail", "Library/Messages",
+        "Library/Application Support/Claude", "Library/Application Support/AFMStudio",
+    ]
+    /// File names that hold credentials wherever they are.
+    public static let sensitiveNames: Set<String> = [
+        ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".claude.json", ".pgpass", ".my.cnf", "credentials", "credentials.json",
+        "id_rsa", "id_ecdsa", "id_ed25519", "id_dsa",
+    ]
+    static let sensitiveExtensions: Set<String> = ["pem", "key", "p12", "pfx", "keychain", "keychain-db", "kdbx", "ovpn"]
+
+    public static func isSensitive(_ url: URL) -> Bool {
+        let p = url.path
+        let home = URL(fileURLWithPath: FileManager.default.homeDirectoryForCurrentUser.path).resolvingSymlinksInPath().standardizedFileURL.path
+        var dirs = sensitiveDirectories.map { home + "/" + $0 }
+        dirs.append(URL(fileURLWithPath: AFMPaths.root.path).resolvingSymlinksInPath().standardizedFileURL.path)
+        if dirs.contains(where: { p == $0 || p.hasPrefix($0 + "/") }) { return true }
+        let name = url.lastPathComponent.lowercased()
+        if sensitiveNames.contains(name) || name.hasPrefix("id_rsa") || name.hasPrefix("id_ed25519") || name.hasPrefix("id_ecdsa") { return true }
+        if name == ".env" || name.hasPrefix(".env.") || name.hasSuffix(".env") { return true }
+        return sensitiveExtensions.contains(url.pathExtension.lowercased())
     }
 
     public static func readText(_ path: String, limit: Int) throws -> String {
@@ -210,12 +246,15 @@ public enum FileAccess {
 
 public enum WebText {
     public static func fetch(_ s: String, limit: Int) async throws -> String {
-        guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http" else {
-            throw AFMError(code: "bad_url", message: "Only http and https URLs can be fetched.")
-        }
+        guard let url = URL(string: s) else { throw AFMError(code: "bad_url", message: "That isn't a valid URL.") }
+        try NetGuard.check(url)
         var req = URLRequest(url: url, timeoutInterval: 20)
         req.setValue("afm-studio/1.0", forHTTPHeaderField: "User-Agent")
-        let (data, _) = try await URLSession.shared.data(for: req)
+        let redirects = NetGuard.RedirectGuard()
+        let (data, resp) = try await URLSession.shared.data(for: req, delegate: redirects)
+        if let http = resp as? HTTPURLResponse, (300..<400).contains(http.statusCode) {
+            throw AFMError(code: "redirect_blocked", message: "The page redirected to a local or private address, or redirected too many times.")
+        }
         let html = String(decoding: data.prefix(3_000_000), as: UTF8.self)
         let text = strip(html)
         return text.count <= limit ? text : String(text.prefix(limit)) + "\n…[truncated]"

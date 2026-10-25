@@ -87,12 +87,50 @@ await suite("Text utilities") {
     check(WebText.strip("<html><head><title>x</title></head><body><script>bad()</script><p>Hello &amp; welcome</p></body></html>") == "Hello & welcome", "HTML stripping")
     checkThrows("reading /etc is refused") { _ = try FileAccess.resolve("/etc/hosts") }
     checkThrows("path traversal is refused") { _ = try FileAccess.resolve("~/../../etc/hosts") }
+    checkThrows("SSH keys are refused") { _ = try FileAccess.resolve("~/.ssh/id_ed25519") }
+    checkThrows("SSH folder listing is refused") { _ = try FileAccess.resolve("~/.ssh") }
+    checkThrows("AWS credentials are refused") { _ = try FileAccess.resolve("~/.aws/credentials") }
+    checkThrows(".env files are refused") { _ = try FileAccess.resolve("~/code/app/.env.local") }
+    checkThrows("private keys are refused") { _ = try FileAccess.resolve("~/certs/server.pem") }
+    checkThrows("Claude Desktop config is refused") { _ = try FileAccess.resolve("~/Library/Application Support/Claude/claude_desktop_config.json") }
+    check((try? FileAccess.resolve("~/Documents/notes.txt")) != nil, "ordinary files still allowed")
+    check((try? FileAccess.resolve("~/code/environment.md")) != nil, "names that merely contain env are allowed")
+
+    check(ToolKind.riskWarning([.readFile, .fetchURL]) != nil, "file + fetch warns")
+    check(ToolKind.riskWarning([.readFile, .calculator]) == nil, "file alone doesn't warn")
+}
+
+await suite("Network guard") {
+    check(NetGuard.isPrivate([127, 0, 0, 1]), "loopback")
+    check(NetGuard.isPrivate([10, 1, 2, 3]) && NetGuard.isPrivate([172, 20, 0, 1]) && NetGuard.isPrivate([192, 168, 1, 1]), "RFC 1918")
+    check(NetGuard.isPrivate([169, 254, 169, 254]), "cloud metadata / link-local")
+    check(NetGuard.isPrivate([100, 64, 0, 1]), "carrier-grade NAT")
+    check(!NetGuard.isPrivate([8, 8, 8, 8]) && !NetGuard.isPrivate([172, 32, 0, 1]), "public IPv4")
+    check(NetGuard.isPrivate([UInt8](repeating: 0, count: 15) + [1]), "IPv6 loopback")
+    check(NetGuard.isPrivate([0xfe, 0x80] + [UInt8](repeating: 0, count: 14)), "IPv6 link-local")
+    check(NetGuard.isPrivate([0xfd, 0x12] + [UInt8](repeating: 0, count: 14)), "IPv6 unique local")
+    check(NetGuard.isPrivate([UInt8](repeating: 0, count: 10) + [0xff, 0xff, 192, 168, 0, 1]), "IPv4-mapped private")
+    check(!NetGuard.isPrivate([0x26, 0x06, 0x47, 0x00] + [UInt8](repeating: 0, count: 11) + [1]), "public IPv6")
+    checkThrows("localhost is refused") { try NetGuard.check(URL(string: "http://localhost:8080/")!) }
+    checkThrows("127.0.0.1 is refused") { try NetGuard.check(URL(string: "http://127.0.0.1/")!) }
+    checkThrows("metadata IP is refused") { try NetGuard.check(URL(string: "http://169.254.169.254/latest/meta-data")!) }
+    checkThrows("bare hostnames are refused") { try NetGuard.check(URL(string: "http://router/")!) }
+    checkThrows("IPv6 loopback is refused") { try NetGuard.check(URL(string: "http://[::1]/")!) }
+    checkThrows("file URLs are refused") { try NetGuard.check(URL(string: "file:///etc/passwd")!) }
 }
 
 await suite("Servers") {
     let r = HTTPRequest.parse(Data("POST /v1/chat/completions HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\n{}".utf8))
     check(r?.method == "POST" && r?.path == "/v1/chat/completions", "HTTP parse")
     check(HTTPRequest.parse(Data("POST / HTTP/1.1\r\nContent-Length: 10\r\n\r\n{}".utf8)) == nil, "waits for full body")
+    if case .invalid(400, _) = HTTPRequest.inspect(Data("POST / HTTP/1.1\r\nContent-Length: -5\r\n\r\nabc".utf8)) { passed += 1 } else { failed.append("Servers: negative Content-Length is rejected") }
+    if case .invalid(400, _) = HTTPRequest.inspect(Data("POST / HTTP/1.1\r\nContent-Length: abc\r\n\r\n".utf8)) { passed += 1 } else { failed.append("Servers: non-numeric Content-Length is rejected") }
+    if case .invalid(413, _) = HTTPRequest.inspect(Data("POST / HTTP/1.1\r\nContent-Length: 999999999999\r\n\r\n".utf8)) { passed += 1 } else { failed.append("Servers: huge Content-Length is rejected up front") }
+    check(HTTPRequest.isLocalHost("127.0.0.1:11535") && HTTPRequest.isLocalHost("localhost") && HTTPRequest.isLocalHost("[::1]:11535"), "local Host headers")
+    check(!HTTPRequest.isLocalHost("attacker.example") && !HTTPRequest.isLocalHost("127.0.0.1.attacker.example:11535"), "DNS-rebinding Host headers")
+    check(HTTPRequest.isLocalOrigin(nil) && HTTPRequest.isLocalOrigin("http://localhost:3000"), "local or missing Origin")
+    check(!HTTPRequest.isLocalOrigin("https://attacker.example") && !HTTPRequest.isLocalOrigin("null"), "foreign Origin")
+    check(HTTPRequest.tokenMatches("Bearer s3cret", "s3cret") && !HTTPRequest.tokenMatches("Bearer s3cre", "s3cret") && !HTTPRequest.tokenMatches(nil, "s3cret"), "token check")
 
     final class Capture: @unchecked Sendable {
         var lines: [String] = []
@@ -114,6 +152,11 @@ await suite("Servers") {
     check(tools.allSatisfy { ($0["inputSchema"] as? [String: Any])?["type"] as? String == "object" }, "tool schemas are objects")
     check(cap.lines[2].contains("-32601"), "unknown method error")
     check(cap.lines[3].contains("-32700"), "parse error")
+
+    SessionStore.shared.save(ChatSessionRecord(id: "studio-private", title: "Private", source: "studio"))
+    let before = cap.lines.count
+    await server.handleLine(#"{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"afm_chat","arguments":{"session_id":"studio-private","message":"hi"}}}"#)
+    check(cap.lines.count == before + 1 && cap.lines[before].contains("chat_not_shared"), "MCP can't continue a chat started in the app")
 }
 
 await suite("Claude wiring") {
