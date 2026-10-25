@@ -100,7 +100,7 @@ In 2026 Apple announced its third generation of foundation models, AFM 3, alongs
 
 ![Structured output](docs/images/structured.png)
 
-- **Chat:** streaming replies with tool calls shown inline. The model warms up as soon as you start typing, so the first token arrives sooner. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically.
+- **Chat:** streaming replies with tool calls shown inline. The model warms up as soon as you start typing, so the first token arrives sooner. Date and time and an exact calculator are on by default. System info, reading files in your home folder, listing folders and fetching a web page are opt-in. Chats are saved, and they appear in the sidebar whether you started them in the app, in Terminal or from Claude. When the 4,096-token context fills up, older turns are summarized automatically. A message too long for the context, such as a pasted transcript, is read in parts: the model works out what you're asking, takes notes on each part, and answers from the notes. You see progress as it reads, and follow-up questions work from the same notes. Expect about a minute and a half for 10,000 tokens.
 - **Recipes:** summarize, key points, ask-the-document, rewrite, proofread, translate, sentiment, classify, entities, action items, meeting notes, tags, quiz, commit messages and more. Inputs longer than the context are split on paragraph and sentence boundaries, run piece by piece, and combined. You can write your own recipes in the app or as JSON files.
 - **Structured output:** build a schema with fields or paste JSON Schema, then watch valid JSON stream in. Apple's constrained decoding guarantees the result matches the schema. One click exports the schema as Swift `@Generable` code.
 - **Batch:** drop files or folders, pick a recipe, then export the results as JSON Lines, CSV or Markdown.
@@ -199,7 +199,7 @@ afm claude compare "Explain mutexes vs semaphores"   # on-device vs Claude, with
 Integrations connect AFM Studio to outside services. Each one is its own module, and each starts **off**. Turning one on shows you what it signs in with, which hosts it talks to, and whether it can ever write. Then there are three switches:
 
 - **On:** the master switch. While it's off, no credentials are read and none of its tools exist.
-- **Tools in chat:** the on-device model may call its read-only tools. Each chat still opts in, because every tool costs context.
+- **Tools in chat:** the on-device model may call its read-only tools. New chats start with every integration whose chat tools are on. Turn one off for a chat in its side panel, since every tool costs context.
 - **Tools for Claude:** its tools appear in the afm MCP server. Restart Claude after changing this.
 
 ```bash
