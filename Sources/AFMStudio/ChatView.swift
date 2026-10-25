@@ -18,6 +18,8 @@ final class ChatViewModel {
     var used = 0
     var total = 4096
     var notice: String?
+    /// Progress while a message too long for the context is read in parts. nil otherwise.
+    var longRead: LongReadProgress?
     private var task: Task<Void, Never>?
 
     // Editable copies of the record's settings
@@ -75,14 +77,18 @@ final class ChatViewModel {
                 _ = try await engine.send(text,
                     onPartial: { s in Task { @MainActor in self.streaming = s } },
                     onTool: { t in Task { @MainActor in self.liveTools.append(t) } },
-                    onNotice: { n in Task { @MainActor in self.notice = n } })
+                    onNotice: { n in Task { @MainActor in self.notice = n } },
+                    onProgress: { p in Task { @MainActor in self.longRead = p } })
             } catch is CancellationError {
+                // Stopped while reading a long message: the message was taken back, so return it to the composer.
+                if engine.record.messages.last(where: { $0.role == .user })?.text != text, self.draft.isEmpty { self.draft = text }
             } catch {
                 self.error = AFMError.from(error).fullDescription
                 if self.draft.isEmpty { self.draft = text }
             }
             self.messages = engine.record.messages
             self.streaming = nil
+            self.longRead = nil
             self.busy = false
             self.app?.reloadSessions()
             await self.refreshUsage()
@@ -135,7 +141,9 @@ struct ChatView: View {
                         ForEach(vm.messages) { m in
                             MessageRow(message: m, onFeedback: m.role == .assistant ? { vm.feedback(positive: $0, issue: $1) } : nil)
                         }
-                        if let s = vm.streaming {
+                        if let p = vm.longRead, (vm.streaming ?? "").isEmpty {
+                            LongReadCard(progress: p) { vm.stop() }
+                        } else if let s = vm.streaming {
                             MessageRow(message: ChatMessage(role: .assistant, text: s.isEmpty ? "" : s, tools: vm.liveTools), live: true)
                         }
                         Color.clear.frame(height: 1).id("bottom")
@@ -145,6 +153,7 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .onChange(of: vm.streaming) { proxy.scrollTo("bottom", anchor: .bottom) }
+                .onChange(of: vm.longRead == nil) { proxy.scrollTo("bottom", anchor: .bottom) }
                 .onChange(of: vm.messages.count) { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
                 .onAppear { proxy.scrollTo("bottom", anchor: .bottom) }
             }
@@ -157,7 +166,7 @@ struct ChatView: View {
             if let n = vm.notice {
                 Label(n, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
                     .padding(.horizontal, 20).padding(.bottom, 4)
-                    .task { try? await Task.sleep(for: .seconds(5)); vm.notice = nil }
+                    .task(id: n) { try? await Task.sleep(for: .seconds(5)); if vm.notice == n { vm.notice = nil } }
             }
             composer
         }
@@ -376,5 +385,45 @@ struct ChatInspector: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Shown in place of the answer while a message too long for the context is read in parts.
+struct LongReadCard: View {
+    let progress: LongReadProgress
+    let onStop: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "doc.text.magnifyingglass")
+                .font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                .frame(width: 26, height: 26)
+                .background(LinearGradient(colors: [.indigo, .purple, .pink], startPoint: .topLeading, endPoint: .bottomTrailing), in: Circle())
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Reading a long message").font(.headline)
+                Text("This message is about \(progress.tokens.formatted()) tokens, more than the model can read at once. AFM Studio is reading it in \(progress.parts) parts, taking notes on each, and will answer from the notes.")
+                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                ProgressView(value: progress.fraction).progressViewStyle(.linear)
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    HStack {
+                        Text(progress.status + "…")
+                        Spacer()
+                        Text("\(LongMessage.clock(ctx.date.timeIntervalSince(progress.started))) · \(Self.left(progress.remaining(at: ctx.date)))")
+                            .monospacedDigit()
+                    }
+                    .font(.caption).foregroundStyle(.secondary)
+                }
+                Button("Stop", systemImage: "stop.fill", action: onStop).controlSize(.small)
+                    .help("Stop reading. Your message goes back to the message box.")
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    static func left(_ seconds: TimeInterval) -> String {
+        seconds < 1 ? "almost done" : LongMessage.roughly(seconds) + " left"
     }
 }

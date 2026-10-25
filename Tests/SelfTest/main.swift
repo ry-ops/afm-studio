@@ -168,6 +168,20 @@ await suite("Long messages") {
     check(final.hasPrefix("My request: REQ") && final.contains("N") && final.contains("without calling tools"), "final prompt leads with the request")
     check(!final.contains("It ended"), "final prompt doesn't quote the end of the message")
 
+    let t0 = Date(timeIntervalSince1970: 1000)
+    var pr = LongReadProgress(tokens: 20893, parts: 9, done: 0, stage: .request, started: t0, updated: t0, remaining: 100)
+    check(pr.fraction == 0 && pr.status == "Working out what you're asking", "request stage")
+    pr.stage = .reading; pr.done = 3
+    check(pr.fraction == 0.3 && pr.status == "Reading part 4 of 9", "reading counts parts, with the answer as one more step")
+    pr.stage = .answering; pr.done = 9
+    check(pr.fraction == 0.9 && pr.status == "Writing the answer", "answering")
+    check(pr.remaining(at: t0.addingTimeInterval(30)) == 70 && pr.remaining(at: t0.addingTimeInterval(500)) == 0, "remaining counts down and stops at zero")
+    check(LongMessage.remaining(parts: 9, done: 0, measuredPerPart: nil, includeRequest: true) == 9 * 13 + 30 + 3, "first estimate uses the default speed")
+    check(LongMessage.remaining(parts: 9, done: 4, measuredPerPart: 10) == 5 * 10 + 30, "later estimates use the measured speed")
+    check(LongMessage.roughly(30) == "under a minute" && LongMessage.roughly(70) == "about a minute" && LongMessage.roughly(170) == "about 3 minutes", "rough durations")
+    check(LongMessage.clock(48) == "48 s" && LongMessage.clock(167) == "2 min 47 s", "exact durations")
+    check(LongMessage.summary(tokens: 20893, parts: 9, seconds: 167) == "Read this 20,893-token message in 9 parts in 2 min 47 s.", "summary line")
+
     check(ChatEngine.answerCap(room: 2200, promptTokens: 2000) == 1040, "the answer gets the room the prompt leaves")
     check(ChatEngine.answerCap(room: 2200, promptTokens: 2900) == nil, "no cap when too little is left to answer")
 
