@@ -81,6 +81,8 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 | 20,893-token transcript | Failed | 9 parts, highlights across the whole text, about 3 minutes |
 | Follow-up in that chat | | Answered from the saved notes: "macOS 27.1 or later, no Xcode app" |
 
+**Progress you can see.** The first version reported progress only in a small caption that hid itself after 5 seconds, so a 3-minute read looked stuck. Now a card in the conversation shows the size, the number of parts, a progress bar, the elapsed time and a countdown, with a Stop button that returns the message to the input box. The estimate starts at 13 seconds per part plus 30 for the answer, then uses the measured speed. A line after the answer records the parts and the time, such as "Read this 11,276-token message in 5 parts in 1 min 34 s." In a live run, the estimate went from about 2 minutes to under a minute as parts finished, and the whole read took 1 minute 34 seconds. The caption timer also restarts for each new notice, so later notices aren't hidden.
+
 **Known limits.** The model often makes one pointless calculator call before answering, because the notes contain numbers. Quoting the end of the message directly made it summarize only the end, which is why the request is worked out first.
 
 ### MCP tool answers arrive damaged or incomplete

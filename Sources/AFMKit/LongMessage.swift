@@ -47,3 +47,76 @@ public enum LongMessage {
             + "Answer my request from these notes alone, without calling tools: the notes are the text I sent. Cover the whole message, not just the start or the end."
     }
 }
+
+/// Where reading a long message has got to, for a progress display.
+public struct LongReadProgress: Sendable, Equatable {
+    public enum Stage: String, Sendable { case request, reading, combining, answering }
+    public var tokens: Int
+    public var parts: Int
+    /// Parts read so far.
+    public var done: Int
+    public var stage: Stage
+    public var started: Date
+    /// When this report was made. `remaining` counts down from here.
+    public var updated: Date
+    /// Estimated seconds left, including the answer.
+    public var remaining: TimeInterval
+
+    public init(tokens: Int, parts: Int, done: Int, stage: Stage, started: Date, updated: Date = Date(), remaining: TimeInterval) {
+        self.tokens = tokens; self.parts = parts; self.done = done; self.stage = stage
+        self.started = started; self.updated = updated; self.remaining = remaining
+    }
+
+    /// 0 to 1. Each part counts as one step, and writing the answer as one more.
+    public var fraction: Double {
+        switch stage {
+        case .request: 0
+        case .reading: Double(done) / Double(parts + 1)
+        case .combining, .answering: Double(parts) / Double(parts + 1)
+        }
+    }
+
+    /// Seconds left at `now`, counting down from the last report but never below zero.
+    public func remaining(at now: Date) -> TimeInterval { max(0, remaining - now.timeIntervalSince(updated)) }
+
+    /// One line for the current step, e.g. "Reading part 4 of 9".
+    public var status: String {
+        switch stage {
+        case .request: "Working out what you're asking"
+        case .reading: "Reading part \(min(done + 1, parts)) of \(parts)"
+        case .combining: "Combining notes"
+        case .answering: "Writing the answer"
+        }
+    }
+}
+
+extension LongMessage {
+    /// Seconds per part before any part is measured. Measured on this project's Mac mini: 11 to 15 seconds.
+    public static let defaultPartSeconds: TimeInterval = 13
+    /// Seconds to work out the request, and to write the final answer (measured: about 3 and 35).
+    public static let requestSeconds: TimeInterval = 3
+    public static let answerSeconds: TimeInterval = 30
+
+    /// Estimated seconds left with `done` of `parts` read, using the measured average when there is one.
+    public static func remaining(parts: Int, done: Int, measuredPerPart: TimeInterval?, includeRequest: Bool = false) -> TimeInterval {
+        Double(max(0, parts - done)) * (measuredPerPart ?? defaultPartSeconds) + answerSeconds + (includeRequest ? requestSeconds : 0)
+    }
+
+    /// A rough duration for a person: "under a minute", "about a minute", "about 3 minutes".
+    public static func roughly(_ seconds: TimeInterval) -> String {
+        if seconds < 45 { return "under a minute" }
+        if seconds < 90 { return "about a minute" }
+        return "about \(Int((seconds / 60).rounded())) minutes"
+    }
+
+    /// An exact duration: "48 s", "2 min 47 s".
+    public static func clock(_ seconds: TimeInterval) -> String {
+        let s = Int(seconds.rounded())
+        return s < 60 ? "\(s) s" : "\(s / 60) min \(s % 60) s"
+    }
+
+    /// The line saved after the answer, so the person knows the whole message was read.
+    public static func summary(tokens: Int, parts: Int, seconds: TimeInterval) -> String {
+        "Read this \(tokens.formatted())-token message in \(parts) parts in \(clock(seconds))."
+    }
+}
