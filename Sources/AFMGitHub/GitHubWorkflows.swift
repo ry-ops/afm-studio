@@ -428,7 +428,7 @@ public enum GitHubWorkflows {
         return parts.filter { part in
             guard let status = part.range(of: "**Status.**") else { return true }
             let line = part[status.upperBound...].prefix { $0 != "\n" }.lowercased()
-            return !(line.contains("fixed") || line.contains("shipped") || line.contains("added for") || line.contains("done"))
+            return !(line.contains("fixed") || line.contains("shipped") || line.contains("added in") || line.contains("added for") || line.contains("done"))
                 || line.contains("still to do") || line.contains("except")
         }.joined(separator: "\n\n")
     }

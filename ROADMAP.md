@@ -87,7 +87,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### MCP tool answers arrive damaged or incomplete
 
-**Status.** Fixed for the next release.
+**Status.** Fixed in 0.2.4.
 
 **What was wrong.** Running every MCP tool from Claude Code turned up these problems:
 
@@ -124,7 +124,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### Recipes ignore parts of their instructions
 
-**Status.** Fixed for the next release, except where noted.
+**Status.** Fixed in 0.2.4, except where noted.
 
 **What was wrong.** A pass over all 21 built-in recipes ran 63 cases, covering every tone, language, intent, style and count choice. The installed 0.2.3 build passed 30 of them. Besides the `"""` wrappers and fences above:
 
@@ -152,7 +152,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### New recipes: redact, explain an error, draft from notes
 
-**Status.** Added for the next release.
+**Status.** Added in 0.2.4.
 
 - **Redact** replaces personal details with numbered placeholders, such as `[Person 1]` and `[Email 1]`. The model only lists the names and whole addresses, as JSON. `Redactor` makes the replacements and finds emails, phone numbers, US Social Security numbers and card numbers with patterns. Card numbers must pass their checksum. Nothing else in the text can change, and a name the model invents that isn't in the text is ignored. A last name on its own gets the full name's placeholder. The recipe has a schema, but `transform: .redact` makes it answer in text, so `isStructured` is false. With `path`, Claude can read a redacted copy of a file through `afm_run_recipe`.
 - **Explain an error** reads an error message, stack trace or log. It says what failed, quoting the line, then gives the likely cause and one to three next steps. A log longer than the context keeps its end (the new `tail` strategy), with a note that earlier lines were left out. The terminal's Explain button already trims this way.
@@ -164,7 +164,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### Summaries and drafts break their own rules
 
-**Status.** Fixed for the next release.
+**Status.** Fixed in 0.2.4.
 
 **What was wrong.** A spin through every MCP tool with the afm-studio Claude Code mod watching turned up:
 
@@ -187,7 +187,7 @@ Opening a link goes through the browser, so nothing leaves the Mac until the per
 
 ### Long-file work is slow, and next steps guesses
 
-**Status.** Fixed for the next release.
+**Status.** Fixed in 0.2.4.
 
 **What was wrong.** Summarizing the README or the roadmap took 33 to 82 seconds, and a PR description 45 to 51. Next steps drafted issues the material didn't support, such as calling a recent fix incomplete.
 
