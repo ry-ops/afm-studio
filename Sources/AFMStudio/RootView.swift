@@ -3,6 +3,7 @@ import AFMKit
 
 struct RootView: View {
     @Environment(AppState.self) private var app
+    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         @Bindable var app = app
@@ -28,6 +29,7 @@ struct RootView: View {
                 }
             }
             .sheet(isPresented: Bindable(app.updates).showSheet) { UpdateSheet().environment(app) }
+            .onAppear { app.openWindow = openWindow }
             .toolbar {
                 ToolbarItem(placement: .primaryAction) {
                     Button { app.terminal.toggle() } label: {
@@ -138,13 +140,14 @@ struct Sidebar: View {
         switch source {
         case "mcp": "point.3.connected.trianglepath.dotted"
         case "cli": "terminal"
+        case "siri": "waveform"
         default: "bubble.left.and.text.bubble.right"
         }
     }
 
     func subtitle(_ s: ChatSessionRecord) -> String {
         let n = s.messages.filter { $0.role != .notice }.count
-        let src = s.source == "mcp" ? "Claude" : s.source == "cli" ? "Terminal" : "Studio"
+        let src = s.source == "mcp" ? "Claude" : s.source == "cli" ? "Terminal" : s.source == "siri" ? "Siri" : "Studio"
         return "\(src) · \(n) message\(n == 1 ? "" : "s") · \(s.updated.formatted(.relative(presentation: .named)))"
     }
 }

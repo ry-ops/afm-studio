@@ -478,6 +478,23 @@ await suite("Integrations") {
     check(BlogWriter.slugify("Building AFM Studio: Apple's model!") == "building-afm-studio-apple-s-model", "blog slug")
 }
 
+await suite("Siri chat lookup") {
+    func chat(_ id: String, _ title: String, _ texts: [String]) -> ChatSessionRecord {
+        var r = ChatSessionRecord(id: id, title: title, source: "studio")
+        r.messages = texts.map { ChatMessage(role: .user, text: $0) }
+        return r
+    }
+    let all = [chat("a", "Weekend plans", ["what about the k3s upgrade?"]),
+               chat("b", "K3s upgrade notes", ["drain the nodes first"]),
+               chat("c", "Groceries", ["eggs, milk"]),
+               chat("d", "Router setup", ["FortiGate policy for K3S ingress"])]
+    check(SessionStore.search("k3s", in: all).map(\.id) == ["b", "a", "d"], "title matches first, then message matches, in order")
+    check(SessionStore.search("  ", in: all, limit: 2).map(\.id) == ["a", "b"], "empty query gives the most recent chats")
+    check(SessionStore.search("upgrade", in: all).map(\.id) == ["b", "a"], "a chat appears once even when title and text both match")
+    check(SessionStore.search("pizza", in: all).isEmpty, "no match, no chats")
+    check(SessionStore.search("k3s", in: all, limit: 1).map(\.id) == ["b"], "limit")
+}
+
 await suite("Jev") {
     let jev = JevIntegration.integrationID
     check(IntegrationRegistry.isEnabled(jev) == false, "Jev starts off")

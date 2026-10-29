@@ -27,7 +27,7 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 - Git, which comes with the Command Line Tools
 - A network connection for the first build, which downloads [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) through Swift Package Manager
 
-You don't need the Xcode app. The Command Line Tools alone build, install and test everything.
+You don't need the Xcode app. The Command Line Tools alone build, install and test everything. The one exception is Siri: macOS lists AFM Studio's Siri actions only in a build made with Xcode installed. See [Siri and Shortcuts](#siri-and-shortcuts).
 
 Check which SDK you have:
 
@@ -112,6 +112,7 @@ In 2026 Apple announced its third generation of foundation models, AFM 3, alongs
 - **Integrations:** turn integrations on, see what each touches, and choose whether its tools reach chat and Claude. GitHub has tabs for an inbox, issues and PRs, repos, write-ups from a local checkout, blog drafts, and your account.
 - **Terminal:** a VS Code-style panel with tabs under every pane, running your login shell. **Explain** asks the on-device model what the output means. See [The terminal](#the-terminal).
 - **Menu bar:** ask a question, or summarize, proofread, rewrite or translate whatever is on the clipboard.
+- **Siri and Shortcuts:** ask questions, reply in old chats, run recipes, and check or change integrations and system settings by voice. See [Siri and Shortcuts](#siri-and-shortcuts).
 
 ## The terminal
 
@@ -132,6 +133,29 @@ Press **⌃`** (Control-backtick) or click the terminal button in the toolbar. T
 The shell starts with a clean environment, the way Terminal.app starts one, and your shell's startup files set the rest. It sets `TERM=xterm-256color`, `COLORTERM=truecolor` and `TERM_PROGRAM=AFMStudio`. It passes through `SSH_AUTH_SOCK`, `TMPDIR`, `AFM_HOME` and `AFM_ALLOWED_PATHS`, so `ssh`, `git` and `afm` behave as they do elsewhere.
 
 The terminal is the one part of AFM Studio built on a third-party package: [SwiftTerm](https://github.com/migueldeicaza/SwiftTerm) 1.99.0 (MIT), pinned to that exact version in `Package.swift`.
+
+## Siri and Shortcuts
+
+AFM Studio's actions appear in Siri, Spotlight and the Shortcuts app. Answers come from the on-device model, so a question asked through Siri stays on this Mac like any other.
+
+Say these to Siri, or type them into Spotlight:
+
+| Area | Say | What happens |
+| --- | --- | --- |
+| Chats | "Ask AFM Studio" | Asks for your question, answers it, and saves it as a new chat marked Siri |
+| Chats | "New chat in AFM Studio" | Opens a new chat |
+| Chats | "Open *chat title* in AFM Studio" | Opens one of your previous chats |
+| Chats | "Continue a chat in AFM Studio" | Asks which chat and what to say, then reads the reply |
+| Workbench, Insights, Integrations, System | "Open *Recipes* in AFM Studio" | Opens any sidebar section, such as Batch, Benchmark, History, GitHub or Model |
+| Workbench | "Run *Summarize* in AFM Studio" | Runs a recipe on text you give it |
+| Insights | "What has AFM Studio done today" | Counts today's runs by kind, from your local history |
+| Integrations | "Turn on *GitHub* in AFM Studio" | Turns an integration on or off |
+| System | "Is AFM Studio ready" | Says whether the on-device model is available |
+| System | "Start the AFM Studio server" | Starts or stops the OpenAI-compatible API server |
+
+The Shortcuts app has six more actions to build with: Get Last Reply, Delete Chat, Count Tokens, Run Benchmark, Integration Status and Check for Updates. Delete Chat asks before it deletes. Actions that answer something, such as Ask or Run Recipe, work without bringing the window forward and return their text for the next step in a shortcut.
+
+**Building it.** The actions are compiled into the app, but macOS lists them only when the bundle has App Intents metadata. Apple's tool that writes it ships with Xcode, not the Command Line Tools. With Xcode installed, `scripts/build-app.sh` adds the metadata automatically, even if Xcode isn't the selected developer directory. Without Xcode the build prints a note and skips it, and everything else works the same. After installing, open AFM Studio once so Siri registers its phrases.
 
 ## The CLI
 
@@ -391,9 +415,9 @@ Sources/AFMKit       engine: generation, schemas, tools, recipes, chunking, chat
 Sources/AFMServer    MCP stdio server and OpenAI-compatible HTTP server
 Sources/AFMGitHub    the GitHub integration (its own module)
 Sources/afm          the CLI
-Sources/AFMStudio    the SwiftUI app, including the terminal panel (TerminalView.swift)
+Sources/AFMStudio    the SwiftUI app, including the terminal panel (TerminalView.swift) and Siri actions (Siri/)
 Tests/SelfTest       self-test (swift run afm-selftest)
-scripts/             app bundle, install, signing identity and icon scripts, and make-visuals.py for the README animations
+scripts/             app bundle, Siri metadata, install, signing identity and icon scripts, and make-visuals.py for the README animations
 docs/images/         screenshots and the animated SVGs
 ```
 

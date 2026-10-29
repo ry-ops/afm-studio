@@ -56,6 +56,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
+# Siri, Shortcuts and Spotlight actions. Needs Xcode's metadata tool; skipped with a note otherwise.
+CONFIG="$CONFIG" bash scripts/app-intents-metadata.sh "$APP"
+
 source scripts/signing.sh
 echo "→ Signing $SIGN_NOTE"
 codesign --force --sign "$SIGN" -i dev.ry-ops.afm-studio.cli "$APP/Contents/Helpers/afm"
@@ -71,6 +74,8 @@ if [ "${1:-}" = "--install" ]; then
   rm -rf "$DEST/AFM Studio.app"
   cp -R "$APP" "$DEST/"
   echo "✓ Installed to $DEST/AFM Studio.app"
+  # Tells Launch Services (and with it Siri and Shortcuts) about the new copy and its actions.
+  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST/AFM Studio.app" >/dev/null 2>&1 || true
 
   # An older copy in ~/Applications goes to the Trash, so Spotlight and Launchpad show only one.
   OLD="$HOME/Applications/AFM Studio.app"
