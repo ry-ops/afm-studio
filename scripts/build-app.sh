@@ -9,8 +9,9 @@ CONFIG=release
 APP="build/AFM Studio.app"
 VERSION=$(sed -n 's/.*string = "\(.*\)".*/\1/p' Sources/AFMKit/Version.swift)
 # Recorded in Info.plist so the app knows which checkout to update from.
-SOURCE_PATH=$(pwd)
-SOURCE_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")
+# The checkout "Check for Updates" tells you to pull. Override both when building from a git worktree.
+SOURCE_PATH=${AFM_SOURCE_PATH:-$(pwd)}
+SOURCE_BRANCH=${AFM_SOURCE_BRANCH:-$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")}
 SOURCE_COMMIT=$(git rev-parse HEAD 2>/dev/null || echo "")
 
 echo "→ Building ($CONFIG)…"

@@ -2,13 +2,14 @@ import SwiftUI
 import AppKit
 import AFMKit
 import AFMGitHub
+import AFMJev
 
 @main
 struct AFMStudioApp: App {
     @ViewState private var app = AppState()
 
     init() {
-        IntegrationRegistry.install([GitHubIntegration()])
+        IntegrationRegistry.install([GitHubIntegration(), JevIntegration()])
         // Lets the app behave normally even when launched as a bare executable (swift run).
         NSApplication.shared.setActivationPolicy(.regular)
         DispatchQueue.main.async { NSApp.activate() }

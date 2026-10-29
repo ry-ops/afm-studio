@@ -52,7 +52,7 @@ struct IntegrationCard: View {
             Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 6) {
                 GridRow { Text("Signs in with").foregroundStyle(.secondary); Text(m.credentials.joined(separator: "; ")) }
                 GridRow { Text("Talks to").foregroundStyle(.secondary); Text(m.hosts.joined(separator: ", ")) }
-                GridRow { Text("Writes").foregroundStyle(.secondary); Text(m.writes == .draftsOnly ? "Drafts only. You review and submit everything." : m.writes.rawValue.capitalized) }
+                GridRow { Text("Writes").foregroundStyle(.secondary); Text(m.writes == .draftsOnly ? "Drafts only. You review and submit everything." : m.writes == .none ? "Nothing. It only answers questions." : m.writes.rawValue.capitalized) }
                 GridRow { Text("Your data").foregroundStyle(.secondary); Text(m.dataNote) }
             }
             .font(.callout)
@@ -70,6 +70,7 @@ struct IntegrationCard: View {
                         Text("Adds \(integration.mcpTools.count) tools to the afm MCP server: \(integration.mcpTools.map(\.name).joined(separator: ", ")).").font(.caption).foregroundStyle(.secondary)
                     }
                 }
+                if integration.id == "jev" { Divider(); JevPanel() }
                 HStack {
                     if integration.id == "github" { Button("Open GitHub") { app.pane = .github } }
                     if changedForClaude { Text("Restart Claude Code or Claude Desktop to refresh their tool list.").font(.caption).foregroundStyle(.orange) }

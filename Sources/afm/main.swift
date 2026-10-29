@@ -2,6 +2,7 @@ import Foundation
 import AFMKit
 import AFMServer
 import AFMGitHub
+import AFMJev
 
 // MARK: - Arguments
 
@@ -90,7 +91,7 @@ func parseArgs(_ raw: [String]) -> Args {
         case "-n", "--limit": a.limit = Int(value(arg)) ?? 20
         case "--stats", "-v": a.stats = true
         case "--version": a.positionals.insert("version", at: 0)
-        case "--chat", "--claude", "--model", "--effort", "--base", "--from", "--to", "--focus", "--notes", "--from-repo", "--days", "--engine":
+        case "--chat", "--claude", "--model", "--effort", "--base", "--from", "--to", "--focus", "--notes", "--from-repo", "--days", "--engine", "--option", "--level":
             a.positionals.append(arg); a.positionals.append(value(arg))
         default:
             fail("unknown option \(arg)", hint: "Run `afm --help`.", code: 2)
@@ -189,6 +190,7 @@ let help = """
   afm claude ...                  Claude via your API key, compare, MCP hook (afm claude help)
   afm integrations                List integrations and turn them on or off (all start off)
   afm github ...                  Digests, summaries, triage, PR text, release notes, blog drafts (afm github help)
+  afm jev ...                     Jev decisions: yes/no, choice and scale questions with probabilities (afm jev help)
 
 \(bold("OPTIONS"))
   -s, --system TEXT     Instructions (system prompt)
@@ -510,9 +512,9 @@ func cmdChat(_ a: Args) async {
 
 // MARK: - Main
 
-IntegrationRegistry.install([GitHubIntegration()])
+IntegrationRegistry.install([GitHubIntegration(), JevIntegration()])
 var args = parseArgs(Array(CommandLine.arguments.dropFirst()))
-let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "claude", "github", "gh", "integrations", "update", "help", "version"]
+let commands: Set<String> = ["ask", "chat", "run", "recipes", "extract", "tokens", "status", "bench", "sessions", "history", "tools", "mcp", "serve", "studio", "claude", "github", "gh", "jev", "integrations", "update", "help", "version"]
 var command = "ask"
 if let first = args.positionals.first, commands.contains(first) {
     command = first
@@ -538,6 +540,7 @@ case "serve": await cmdServe(args)
 case "studio": cmdStudio()
 case "claude": await cmdClaude(args)
 case "github", "gh": await cmdGitHub(args)
+case "jev": await cmdJev(args)
 case "integrations": cmdIntegrations(args)
 case "update": await cmdUpdate(args)
 default: out(help)

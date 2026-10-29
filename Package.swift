@@ -23,8 +23,9 @@ let package = Package(
         .target(name: "AFMServer", dependencies: ["AFMKit"], swiftSettings: v5),
         // Integrations: one module each, built on AFMKit, switched on per user.
         .target(name: "AFMGitHub", dependencies: ["AFMKit"], swiftSettings: v5),
-        .executableTarget(name: "afm", dependencies: ["AFMKit", "AFMServer", "AFMGitHub"], swiftSettings: v5),
-        .executableTarget(name: "AFMStudio", dependencies: ["AFMKit", "AFMServer", "AFMGitHub", .product(name: "SwiftTerm", package: "SwiftTerm")], swiftSettings: v5),
-        .executableTarget(name: "afm-selftest", dependencies: ["AFMKit", "AFMServer", "AFMGitHub"], path: "Tests/SelfTest", swiftSettings: v5),
+        .target(name: "AFMJev", dependencies: ["AFMKit"], swiftSettings: v5),
+        .executableTarget(name: "afm", dependencies: ["AFMKit", "AFMServer", "AFMGitHub", "AFMJev"], swiftSettings: v5),
+        .executableTarget(name: "AFMStudio", dependencies: ["AFMKit", "AFMServer", "AFMGitHub", "AFMJev", .product(name: "SwiftTerm", package: "SwiftTerm")], swiftSettings: v5),
+        .executableTarget(name: "afm-selftest", dependencies: ["AFMKit", "AFMServer", "AFMGitHub", "AFMJev"], path: "Tests/SelfTest", swiftSettings: v5),
     ]
 )
