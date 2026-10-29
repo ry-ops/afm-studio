@@ -50,6 +50,14 @@ if [ ! -s "$WORK/constvalues.list" ]; then
   exit 0
 fi
 
+# The linker's dependency info. The tool reads it to confirm the app links AppIntents.framework, and
+# skips extraction without it ("no AppIntents.framework dependency found").
+DEP_INFO="$OBJ/${MODULE}_dependency_info.dat"
+if [ ! -s "$DEP_INFO" ]; then
+  echo "  Siri actions skipped: the build didn't write the linker's dependency info for $MODULE." >&2
+  exit 0
+fi
+
 TOOLCHAIN_DIR=$(cd "$(dirname "$TOOL")/../.." && pwd)
 SDK=$(run_xcrun --sdk macosx --show-sdk-path)
 XCODE_BUILD=$(run_xcrun xcodebuild -version 2>/dev/null | sed -n 's/Build version //p')
@@ -66,7 +74,7 @@ run_xcrun appintentsmetadataprocessor \
   --output "$APP/Contents/Resources" \
   --target-triple "$ARCH-apple-macos$DEPLOYMENT_TARGET" \
   --binary-file "$APP/Contents/MacOS/$MODULE" \
-  --dependency-file "$WORK/$MODULE.d" \
+  --dependency-file "$DEP_INFO" \
   --stringsdata-file "$WORK/ExtractedAppShortcutsMetadata.stringsdata" \
   --source-file-list "$OBJ/$MODULE.SwiftFileList" \
   --metadata-file-list "$WORK/metadata.list" \
