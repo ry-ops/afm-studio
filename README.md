@@ -17,7 +17,7 @@ The model is the roughly 3-billion-parameter model behind Apple Intelligence. It
 | **MCP server** (`afm mcp`) | 15 tools that let Claude hand text work to the on-device model, plus tools from any integration you turn on. Files are processed locally with `path`, so their contents never enter Claude's context. |
 | **OpenAI-compatible API** (`afm serve`) | `/v1/chat/completions` on `127.0.0.1`, with streaming and `response_format: json_schema`. |
 | **Claude section** | Your Anthropic API key in the macOS Keychain, on-device vs. Claude comparisons with cost, and automatic MCP registration in Claude Code and Claude Desktop. |
-| **Integrations** | Optional connections to outside services, each off until you turn it on. GitHub is the first. |
+| **Integrations** | Optional connections to outside services, each off until you turn it on: GitHub, and Jev, a decision model that answers typed questions with probabilities. |
 
 ## Requirements
 
@@ -237,6 +237,34 @@ Free-form GitHub search is a Claude-only tool, since Claude writes search querie
 
 **Honest limits.** Summaries and triage are solid. PR descriptions summarize each changed file first so large diffs still fit. Long-form writing is where a 3-billion-parameter model shows its size.
 
+### Jev
+
+[Jev](https://typesafe.ai) is TypeSafe AI's decision model. It never writes text. You give it text and typed questions, and it returns probabilities in a fraction of a second. That makes it a good partner for the on-device model: AFM reads and writes on your Mac, and Jev makes quick yes/no, multiple-choice and scale decisions. Jev runs in TypeSafe's cloud, and each call is billed to your TypeSafe account.
+
+| Question | What you get back | CLI |
+| --- | --- | --- |
+| **Noul** (true or false) | The probability that a statement is true | `afm jev ask "This comment is spam" "WIN A FREE IPHONE"` |
+| **Choice** | The most likely option, with a probability for each | `afm jev choose "What kind of commit?" --option feat --option fix=bug fix -f msg.txt` |
+| **Score** | A position on your ordered scale, with a probability per level | `afm jev score "How severe?" --level Cosmetic --level Degraded --level Blocking` |
+
+`afm jev run questions.json` asks several questions about the same text in one call, in [TypeSafe's format](https://docs.typesafe.ai/primitives). Add `--json` for the full answer with probabilities.
+
+Set it up once:
+
+```bash
+afm jev key set                 # paste your TypeSafe key (input is hidden), or pipe it in. It goes to the Keychain.
+afm integrations enable jev
+afm jev status                  # key, connection, model and what you've spent
+afm jev model jev-1.14.0        # optional: pin a version for repeatable results (default jev-latest)
+```
+
+- **Claude** gets one tool, `afm_jev_decide`. With `path`, a file is read on your Mac and sent to TypeSafe, so it never enters Claude's context.
+- **Chat** gets one small tool, `jev_decide`, so the on-device model can ask Jev for a calibrated judgment, such as whether an email is phishing.
+- **Spending.** AFM Studio keeps a tally of calls and input tokens from this Mac, priced at TypeSafe's list rate of $0.042 per million input tokens. Run `afm jev usage`, or see the Jev card in Integrations. Your TypeSafe console has the real bill and your spending limit.
+- **Limits.** Jev reads up to 32K tokens, and AFM Studio refuses larger input before sending it. Jev is weak at counting, arithmetic and comparing dates, so do those in code.
+
+The key is stored like the Anthropic key: in your login Keychain, never in a file. `TYPESAFE_API_KEY` works as a fallback.
+
 ## OpenAI-compatible API
 
 ```bash
@@ -289,6 +317,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 | --- | --- | --- |
 | Fetch web page tool | the URL the model picks | each chat, or `--tool fetch_url` |
 | GitHub integration | `api.github.com` | Integrations, then the GitHub switch |
+| Jev integration (text you ask about) | `api.typesafe.ai` | Integrations, then the Jev switch |
 | Claude features | `api.anthropic.com` | adding an Anthropic API key |
 | Blog drafts written by Claude | `api.anthropic.com` | choosing Claude as the writer |
 | Update checks | `api.github.com` (latest release only) | Settings > General, `afm update auto on`, or checking by hand |
@@ -322,8 +351,10 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 | `AFM_INSTALL_DIR` | Where `scripts/install.sh` links `afm`. The default is `~/.local/bin`. |
 | `ANTHROPIC_API_KEY` | Fallback Anthropic key when the Keychain has none. |
 | `GITHUB_TOKEN`, `GH_TOKEN` | Fallback GitHub tokens after the Keychain and `gh`. |
+| `TYPESAFE_API_KEY` | Fallback TypeSafe key for Jev when the Keychain has none. |
 | `NO_COLOR` | Turns off colored terminal output. |
 | `AFM_SIGN_IDENTITY` | The code-signing identity the build scripts use. The default is `AFM Studio Local Signing`. |
+| `AFM_SOURCE_PATH`, `AFM_SOURCE_BRANCH` | The checkout and branch `build-app.sh` records for Check for Updates. Set them when building from a git worktree. |
 
 ## Troubleshooting
 
@@ -345,6 +376,7 @@ The animations above are drawn by `scripts/make-visuals.py` from real `afm` runs
 afm claude unhook                     # remove the MCP registration from Claude Code and Claude Desktop
 afm claude key rm                     # delete the Anthropic key from the Keychain
 afm github auth rm                    # delete the GitHub token from the Keychain
+afm jev key rm                        # delete the TypeSafe key from the Keychain
 rm -rf /Applications/"AFM Studio.app" ~/Applications/"AFM Studio.app" ~/.local/bin/afm ~/.local/share/afm-studio
 rm -rf ~/Library/Application\ Support/AFMStudio            # chats, history, recipes and settings
 rm -f ~/Library/Application\ Support/Claude/claude_desktop_config.afm-backup.json

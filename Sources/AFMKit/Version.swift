@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AFMVersion {
-    public static let string = "0.2.4"
+    public static let string = "0.2.5"
     public static let name = "afm-studio"
 
     /// The commit this build came from, read once from the app's Info.plist (`AFMCommit`, written by

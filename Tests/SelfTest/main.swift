@@ -6,6 +6,7 @@ import FoundationModels
 import AFMKit
 import AFMServer
 import AFMGitHub
+import AFMJev
 
 var passed = 0
 var failed: [String] = []
@@ -33,7 +34,7 @@ func checkThrows(_ what: String, line: Int = #line, _ op: () throws -> Void) {
 let home = FileManager.default.temporaryDirectory.appendingPathComponent("afm-selftest-\(getpid())")
 setenv("AFM_HOME", home.path, 1)
 
-IntegrationRegistry.install([GitHubIntegration()])
+IntegrationRegistry.install([GitHubIntegration(), JevIntegration()])
 
 await suite("Calculator") {
     check(try Calculator.evaluate("2 + 3 * 4") == 14, "precedence")
@@ -475,6 +476,77 @@ await suite("Integrations") {
     check(patches.map(\.0) == ["x.swift", "y.md"], "diff split per file")
     check(GitHubWorkflows.similarity("App crashes when opening settings", "Crash when opening the settings screen") > 0.25, "duplicate similarity")
     check(BlogWriter.slugify("Building AFM Studio: Apple's model!") == "building-afm-studio-apple-s-model", "blog slug")
+}
+
+await suite("Jev") {
+    let jev = JevIntegration.integrationID
+    check(IntegrationRegistry.isEnabled(jev) == false, "Jev starts off")
+    checkThrows("no Jev client (and no key read) while off") { _ = try JevClient.make() }
+    checkThrows("rejects keys that aren't TypeSafe's") { try JevAuth.save("sk-ant-api03-nope") }
+    checkThrows("rejects keys with spaces") { try JevAuth.save("apikey_abc def ghi jkl mno pqr") }
+
+    // Request body, in TypeSafe's format.
+    let body = try JevClient.body(model: "jev-1.13.0", state: "Checkout is down for everyone.", questions: [
+        ("urgent", JevQuestion.noul(instructions: "Is this urgent?").json),
+        ("team", JevQuestion.choice(instructions: "Which team?", options: [JevOption.parse("billing=Payments and refunds"), JevOption.parse("technical")]).json),
+        ("severity", JevQuestion.score(instructions: "How severe?", levels: ["Cosmetic", "Degraded", "Blocking"]).json),
+    ])
+    let sent = try JSONSerialization.jsonObject(with: body) as! [String: Any]
+    let qs = sent["questions"] as! [String: Any]
+    check(sent["model"] as? String == "jev-1.13.0" && sent["state"] as? String == "Checkout is down for everyone.", "model and state")
+    check((qs["urgent"] as! [String: Any])["type"] as? String == "noul", "noul question")
+    let crit = (qs["team"] as! [String: Any])["criteria"] as! [String: Any]
+    check(crit["billing"] as? String == "Payments and refunds" && crit["technical"] is NSNull, "choice criteria: described and bare options")
+    check((qs["severity"] as! [String: Any])["criteria"] as? [String] == ["Cosmetic", "Degraded", "Blocking"], "score levels in order")
+    checkThrows("empty state is refused before sending") { _ = try JevClient.body(model: "m", state: "  ", questions: [("a", JevQuestion.noul(instructions: "x").json)]) }
+    checkThrows("no questions is refused") { _ = try JevClient.body(model: "m", state: "x", questions: []) }
+    checkThrows("unknown question type is refused") { _ = try JevClient.body(model: "m", state: "x", questions: [("a", ["type": "essay"])]) }
+    checkThrows("oversized state is refused before it is billed") {
+        _ = try JevClient.body(model: "m", state: String(repeating: "a", count: JevClient.maxStateCharacters + 1), questions: [("a", JevQuestion.noul(instructions: "x").json)])
+    }
+
+    // Response parsing, using the shapes from TypeSafe's docs.
+    let reply = #"""
+    {"model":"jev-1.13.0","answers":{
+      "severity":{"type":"score","score":1.43,"confidence":0.35,"legend":{"0":"Cosmetic","1":"Degraded","2":"Blocking"},"probabilities":{"0":0.0,"1":0.57,"2":0.43}},
+      "urgent":{"type":"noul","noul":0.92},
+      "team":{"type":"choice","choice":"technical","confidence":0.81,"probabilities":{"billing":0.09,"technical":0.91}}},
+     "usage":{"input_tokens":120,"output_tokens":0}}
+    """#
+    let r = try JevClient.parse(Data(reply.utf8), order: ["urgent", "team", "severity"], seconds: 0.08)
+    check(r.answers.map(\.name) == ["urgent", "team", "severity"], "answers keep the question order")
+    check(r.answers[0].answer.noul == 0.92 && r.answers[0].answer.summary.hasPrefix("true"), "noul answer")
+    check(r.answers[1].answer.choice == "technical" && r.answers[1].answer.probabilities["billing"] == 0.09, "choice answer")
+    check(r.answers[2].answer.summary.contains("of 0–2") && r.answers[2].answer.summary.contains("Degraded"), "score answer reads its legend")
+    check(r.model == "jev-1.13.0" && r.inputTokens == 120, "model and usage")
+    check((r.json["estimated_cost_usd"] as! NSDecimalNumber) == NSDecimalNumber(string: "0.00000504"), "cost estimate")
+    check(JSONSchemaConverter.jsonText(r.json).contains("\"noul\" : 0.92"), "JSON shows clean numbers")
+    checkThrows("garbage response") { _ = try JevClient.parse(Data("<html>".utf8), order: [], seconds: 0) }
+
+    // Errors.
+    check(JevClient.error(status: 401, data: Data()).code == "jev_auth", "401 is a key problem")
+    check(JevClient.error(status: 400, data: Data(#"{"detail":"max_tokens_exceeded"}"#.utf8)).code == "jev_too_long", "400 too long")
+    check(JevClient.error(status: 422, data: Data(#"{"detail":[{"loc":["body","questions","a","criteria"],"msg":"Field required","type":"missing"}]}"#.utf8)).message
+          == "TypeSafe: body.questions.a.criteria: Field required", "422 names the field")
+
+    // MCP and CLI helpers.
+    let parsed = try JevIntegration.questions(from: ["b": ["type": "noul"], "a": ["type": "noul"]])
+    check(parsed.map(\.0) == ["a", "b"], "MCP questions in a stable order")
+    checkThrows("MCP questions must be an object") { _ = try JevIntegration.questions(from: "spam?") }
+    check(JevIntegration.simpleQuestion("Spam?", options: nil) == .noul(instructions: "Spam?"), "one question, no options: noul")
+    check(JevIntegration.simpleQuestion("Kind?", options: "bug, question=Asks how") == .choice(instructions: "Kind?", options: [JevOption(name: "bug"), JevOption(name: "question", description: "Asks how")]), "options make a choice")
+
+    // Spending tally, kept under AFM_HOME.
+    JevUsage.reset()
+    JevUsage.record(inputTokens: 1_000_000, model: "jev-1.13.0", source: "cli")
+    JevUsage.record(inputTokens: 500_000, model: "jev-1.13.0", source: "mcp")
+    let u = JevUsage.load()
+    check(u.calls == 2 && u.inputTokens == 1_500_000 && abs(u.estimatedCost - 0.063) < 1e-9 && u.bySource == ["cli": 1, "mcp": 1], "usage tally")
+
+    IntegrationRegistry.setPrefs(jev) { $0.enabled = true }
+    check(IntegrationRegistry.mcpTools.map(\.name) == ["afm_jev_decide"], "one Jev tool for Claude once on")
+    check(IntegrationRegistry.chatEnabled.map(\.id) == [jev], "Jev chat tool once on")
+    IntegrationRegistry.setPrefs(jev) { $0 = IntegrationPrefs() }
 }
 
 if !CommandLine.arguments.contains("--offline") {
