@@ -269,48 +269,8 @@ AFM Studio now requires macOS 27, so these can use the macOS 27 SDK directly.
 - **Evaluations.** Run a recipe against saved test cases and report regressions, and add an `afm eval` command.
 - **Adapters for AFM 3.** The macOS 27 SDK removed the adapter API, so AFM Studio removed adapter support. Bring it back if Apple ships a replacement.
 
-## 3. Siri and Shortcuts
+## Parked: Siri and Shortcuts
 
-**Status.** The code is written, builds with 0.2.5 and lives on the `feat/siri-shortcuts` branch as a draft PR. Integrations come from the registry, so Jev shows up in Siri and Shortcuts without extra code. Siri doesn't list the actions yet, because no build so far has included the App Intents metadata. That needs Xcode, which isn't installed on the build Mac yet. Next: install Xcode, build, install, and check every phrase by voice.
+Tried and removed on 2026-10-29 (#10 added it, the revert removed it). AFM Studio declared 16 App Intents and 10 App Shortcut phrases, and builds wrote `Metadata.appintents` with Xcode's `appintentsmetadataprocessor`. macOS registered every action, but neither Siri nor the Shortcuts app offered them. Siri answered "Is AFM Studio ready" by summarizing the README instead. A one-action test app built by Xcode itself was registered the same way, so the build wasn't the only suspect, and the macOS 27 beta Siri may not offer third-party actions yet.
 
-Siri, Spotlight and the Shortcuts app can work with each part of the sidebar: chats, the Workbench, Insights, Integrations and System. Answers come from the on-device model, so a question asked through Siri stays on the Mac.
-
-### What you'll see
-
-- **Chats:** ask a question in a new chat, start a chat, open a previous chat by its title, reply in a chat and hear the answer, read a chat's last reply, and delete a chat after a confirmation.
-- **Workbench:** run any recipe on text you give it, count tokens, and open Recipes, Structured Output, Batch, Compare or Tokens.
-- **Insights:** hear a count of today's runs from local history, run the benchmark, and open Benchmark or History.
-- **Integrations:** turn an integration on or off, hear its status, and open Integrations or GitHub.
-- **System:** hear the model's status, start or stop the API server, check for updates, and open Model, Claude or CLI & API.
-
-Apple allows ten Siri phrases per app. The phrases cover Ask, New Chat, Open Chat, Reply in Chat, Open Section, Run Recipe, Recent Activity, integrations, Model Status and the API server. The other six actions are only in the Shortcuts app. The README's Siri and Shortcuts section lists the phrases.
-
-### How it works
-
-1. **Intents in the app.** `Sources/AFMStudio/Siri/` defines the actions as App Intents, plus entities for chats, recipes and integrations, and an enum of sidebar sections. Siri looks chats up by title first, then by message text.
-2. **One app state.** `AppState.shared` is the single instance used by the window, the menu bar and the intents. Actions that answer something run in the background. Actions that show something bring the window forward and reopen it if it was closed.
-3. **Chats stay in sync.** A reply sent from Siri goes through the chat's view model, so an open chat streams it like a typed message. Chats started from Siri are saved with the source `siri` and show a waveform icon in the sidebar.
-4. **Metadata at build time.** `swift build` already compiles the intents and records their constant values and source list. `scripts/app-intents-metadata.sh` then runs Apple's `appintentsmetadataprocessor`, which writes `Contents/Resources/Metadata.appintents` into the bundle. The arguments match Apple's `AppIntentsMetadata.xcspec`, which ships with Swift Build. `build-app.sh` runs the script before signing, and `--install` re-registers the app with Launch Services.
-
-### Dependencies
-
-- **Xcode.** `appintentsmetadataprocessor` ships only with Xcode, not the Command Line Tools. The script finds it in the selected developer directory or in any `Xcode*.app` in `/Applications` or `~/Applications`. Xcode doesn't have to be selected with `xcode-select`. Without Xcode, the build prints a note and skips this step, and the app works as before without Siri actions.
-- **Swift Build internals.** The script reads `AFMStudio.SwiftFileList` and `*.swiftconstvalues` from `.build/out/Intermediates.noindex/.../Release/AFMStudio-p.build/Objects-normal/<arch>/`. That layout isn't a public interface, so a SwiftPM update could move it. The script stops with a clear note if it can't find those files.
-- **macOS 27 SDK.** The intents use `supportedModes` to say which actions run in the background. That needs the macOS 26 SDK or later, which the build already requires.
-- **A stable signature.** Siri and Shortcuts tie actions to the app's identity. Builds signed with the local identity from `scripts/make-signing-identity.sh` keep that identity across rebuilds. Ad-hoc builds may need the app opened again before Siri sees changed actions.
-- **Apple Intelligence.** Ask, Reply in Chat, Run Recipe and Run Benchmark need the on-device model. When the model is unavailable, Siri says why instead of failing quietly.
-
-### Before it ships
-
-- Build with Xcode installed and confirm `Metadata.appintents` is in the bundle.
-- Run each phrase through Siri and each action in Shortcuts, with the app quit, open in the background, and open with its window closed.
-- Reply in a chat that's open on screen, and in one that's busy answering. The busy chat should refuse with a clear message.
-- Confirm that Delete Chat asks first, and that turning GitHub off while its pane is showing moves the window to Integrations.
-- Self-test checks for the parts that don't need Siri. Done for chat lookup, which moved into `SessionStore.search` so the self-test can reach it. The section-to-pane mapping is an exhaustive `switch`, so the compiler checks it.
-
-### Open questions
-
-- **Which ten phrases.** Benchmark, Count Tokens or Check for Updates could replace a phrase that goes unused.
-- **Siri's own chats.** Every question asked through Ask becomes a saved chat. If that crowds the sidebar, add a setting to keep them out of the list or to group them.
-- **Spotlight indexing.** Chats could also be indexed so Spotlight finds them by content. That would store chat text in the system index, which is a privacy choice to make explicitly first.
-- **Localization.** The phrases are English only. Shortcut names and phrases would need string catalogs to be translated.
+It needed the full Xcode, not just the Command Line Tools, plus an Apple Development certificate, a build number that changes every build, and Xcode's build stamps in `Info.plist`. Those fixes are on the `feat/siri-shortcuts` branch. Revisit after a later macOS 27 release, starting with the Xcode test app, before rebuilding any of it.

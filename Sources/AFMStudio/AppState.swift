@@ -1,5 +1,4 @@
 import SwiftUI
-import AppIntents
 import AFMKit
 import AFMServer
 import AFMGitHub
@@ -11,9 +10,6 @@ enum Pane: Hashable {
 
 @Observable @MainActor
 final class AppState {
-    /// The one instance, shared by the window, the menu bar and Siri's actions.
-    static let shared = AppState()
-
     var status = ModelStatus.current()
     var sessions: [ChatSessionRecord] = []
     var pane: Pane? = .recipes
@@ -25,8 +21,6 @@ final class AppState {
     let github = GitHubState()
     let terminal = TerminalStore()
     let updates = UpdateState()
-    /// Captured from the main window so Siri can reopen it after it's been closed.
-    var openWindow: OpenWindowAction?
 
     init() {
         reloadSessions()
@@ -53,42 +47,16 @@ final class AppState {
         }
     }
 
-    func reloadSessions() {
-        let before = sessions.map(\.id)
-        sessions = SessionStore.shared.list()
-        // Lets Siri recognize chat titles in phrases like "Open <chat> in AFM Studio".
-        if sessions.map(\.id) != before { StudioShortcuts.updateAppShortcutParameters() }
-    }
+    func reloadSessions() { sessions = SessionStore.shared.list() }
     func reloadRecipes() { recipes = RecipeBook.shared.all() }
 
-    func newChat() { createChat(source: "studio", select: true) }
-
-    /// Makes a chat with the default settings. Siri's questions use `select: false`, so they don't move the window.
-    @discardableResult
-    func createChat(source: String, select: Bool) -> String {
+    func newChat() {
         let r = ChatSessionRecord(instructions: settings.defaultInstructions, config: settings.defaultConfig,
-                                  options: settings.defaultOptions, tools: settings.defaultTools, source: source,
+                                  options: settings.defaultOptions, tools: settings.defaultTools, source: "studio",
                                   integrations: ChatSessionRecord.defaultIntegrations)
         SessionStore.shared.save(r)
         reloadSessions()
-        if select { pane = .chat(r.id) }
-        return r.id
-    }
-
-    /// Brings AFM Studio forward, reopening the main window if it was closed.
-    func showMainWindow() {
-        NSApp.activate()
-        let visible = NSApp.windows.contains { $0.isVisible && $0.canBecomeMain }
-        if !visible { openWindow?(id: "main") }
-    }
-
-    func setIntegration(_ id: String, enabled: Bool) {
-        var p = settings.integrationPrefs[id] ?? IntegrationPrefs()
-        p.enabled = enabled
-        settings.integrationPrefs[id] = p
-        saveSettings()
-        if !enabled, pane == .github, id == "github" { pane = .integrationsHub }
-        Task { await github.refreshStatus() }
+        pane = .chat(r.id)
     }
 
     func chatModel(_ id: String) -> ChatViewModel {
