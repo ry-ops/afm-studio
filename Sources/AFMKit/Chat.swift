@@ -92,20 +92,6 @@ public final class SessionStore: @unchecked Sendable {
 
     public func delete(_ id: String) { try? FileManager.default.removeItem(at: url(id)) }
 
-    /// Saved chats matching `query`, for Siri, Shortcuts and Spotlight. Titles match first, then anything said in a chat.
-    public func search(_ query: String, limit: Int = 20) -> [ChatSessionRecord] { Self.search(query, in: list(), limit: limit) }
-
-    /// Title matches first, then chats whose messages mention the query, each newest first as given.
-    /// An empty query returns the most recent chats.
-    public static func search(_ query: String, in all: [ChatSessionRecord], limit: Int = 20) -> [ChatSessionRecord] {
-        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !q.isEmpty else { return Array(all.prefix(limit)) }
-        let byTitle = all.filter { $0.title.localizedCaseInsensitiveContains(q) }
-        let titled = Set(byTitle.map(\.id))
-        let byText = all.filter { r in !titled.contains(r.id) && r.messages.contains { $0.text.localizedCaseInsensitiveContains(q) } }
-        return Array((byTitle + byText).prefix(limit))
-    }
-
     static var decoder: JSONDecoder {
         let d = JSONDecoder()
         d.dateDecodingStrategy = .iso8601

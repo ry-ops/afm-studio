@@ -97,31 +97,6 @@ final class ChatViewModel {
 
     func stop() { task?.cancel() }
 
-    /// Sends a message from Siri or Shortcuts and waits for the answer. If the chat is on screen, the reply streams in as usual.
-    func reply(to text: String) async throws -> ChatMessage {
-        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { throw AFMError(code: "empty", message: "There's no message to send.") }
-        guard !busy else { throw AFMError(code: "busy", message: "That chat is still answering. Try again when it finishes.") }
-        error = nil
-        busy = true
-        streaming = ""
-        liveTools = []
-        messages.append(ChatMessage(role: .user, text: text))
-        defer {
-            messages = engine.record.messages
-            streaming = nil
-            longRead = nil
-            busy = false
-            app?.reloadSessions()
-            Task { await refreshUsage() }
-        }
-        return try await engine.send(text,
-            onPartial: { s in Task { @MainActor in self.streaming = s } },
-            onTool: { t in Task { @MainActor in self.liveTools.append(t) } },
-            onNotice: { n in Task { @MainActor in self.notice = n } },
-            onProgress: { p in Task { @MainActor in self.longRead = p } })
-    }
-
     func reset() {
         stop()
         engine.reset()

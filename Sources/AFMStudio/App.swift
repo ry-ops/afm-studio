@@ -6,7 +6,7 @@ import AFMJev
 
 @main
 struct AFMStudioApp: App {
-    @ViewState private var app = AppState.shared
+    @ViewState private var app = AppState()
 
     init() {
         IntegrationRegistry.install([GitHubIntegration(), JevIntegration()])
