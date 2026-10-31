@@ -59,16 +59,24 @@ public struct Recipe: Codable, Sendable, Hashable, Identifiable {
     public var maxBullets: [String: Int]?
     /// The most sentences a prose answer without bullets may have, keyed the same way.
     public var maxSentences: [String: Int]?
+    /// Where the input comes from when none is given, such as a GitHub search (`RecipeSource`).
+    public var source: RecipeSource?
 
     public init(id: String, title: String, summary: String, symbol: String = "wand.and.stars", category: String = "Custom",
                 instructions: String, template: String = "{{input}}", params: [RecipeParam] = [], schema: String? = nil,
                 temperature: Double? = nil, useCase: UseCaseMode? = nil, permissive: Bool? = nil, long: LongStrategy? = nil, builtin: Bool? = nil,
-                transform: RecipeTransform? = nil, maxBullets: [String: Int]? = nil, maxSentences: [String: Int]? = nil) {
+                transform: RecipeTransform? = nil, maxBullets: [String: Int]? = nil, maxSentences: [String: Int]? = nil, source: RecipeSource? = nil) {
         self.id = id; self.title = title; self.summary = summary; self.symbol = symbol; self.category = category
         self.instructions = instructions; self.template = template; self.params = params; self.schema = schema
         self.temperature = temperature; self.useCase = useCase; self.permissive = permissive; self.long = long; self.builtin = builtin
         self.transform = transform; self.maxBullets = maxBullets; self.maxSentences = maxSentences
+        self.source = source
     }
+
+    /// Fetches its own input when none is given.
+    public var hasSource: Bool { source != nil }
+    /// Must be given text: it uses `{{input}}` and has no source to fill it.
+    public var needsInput: Bool { source == nil && template.contains("{{input}}") }
 
     /// Whether these parameter values ask for bullets (summarize's "bullet points" style) rather than prose.
     static func asksForBullets(_ values: [String: String]) -> Bool {
@@ -118,7 +126,7 @@ public final class RecipeBook: @unchecked Sendable {
     public func all() -> [Recipe] {
         var byID: [String: Recipe] = [:]
         var order: [String] = []
-        for r in Recipe.builtins { byID[r.id] = r; order.append(r.id) }
+        for r in Recipe.builtins + IntegrationRegistry.enabledRecipes { byID[r.id] = r; order.append(r.id) }
         for r in userRecipes() {
             if byID[r.id] == nil { order.append(r.id) }
             byID[r.id] = r
@@ -177,6 +185,29 @@ public enum RecipeRunner {
                            options: GenOptions = .default, config: ModelConfig = .default,
                            onPartial: (@Sendable (String) -> Void)? = nil,
                            onProgress: (@Sendable (Progress) -> Void)? = nil) async throws -> GenerationResult {
+        // A recipe with a source fetches its own input, unless you give it some.
+        if recipe.source != nil, input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let start = Date()
+            let material = try await RecipeSources.fetch(recipe, params: params) { stage in
+                onProgress?(Progress(done: 0, total: 1, stage: stage))
+            }
+            if material.isEmpty {
+                let r = GenerationResult(text: material.emptyMessage ?? "Nothing matched \(material.description).",
+                                         seconds: Date().timeIntervalSince(start), sources: [], sourceText: "")
+                onPartial?(r.text)
+                return r
+            }
+            var r = try await run(recipe, input: material.text, params: params, options: options, config: config,
+                                  onPartial: onPartial, onProgress: onProgress)
+            if let h = material.headline, !r.isJSON {
+                r.text = h + "\n\n" + r.text
+                onPartial?(r.text)
+            }
+            r.sources = material.items
+            r.sourceText = material.text
+            r.seconds = Date().timeIntervalSince(start)
+            return r
+        }
         guard let transform = recipe.transform else {
             return try await generate(recipe, input: input, params: params, options: options, config: config, onPartial: onPartial, onProgress: onProgress)
         }

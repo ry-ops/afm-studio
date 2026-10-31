@@ -73,8 +73,9 @@ enum MCPTools {
                     "reset": ["type": "boolean", "description": "Clear the conversation first."],
                 ]), required: ["message"]),
             def("afm_recipes", "List recipes", "List every recipe (built-in and user-made) with its parameters. Run one with afm_run_recipe."),
-            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, explain-error, draft, key-points) on text or a local file. `redact` with `path` returns the file with names, addresses, emails, phone numbers and ID numbers replaced by placeholders, so you can read it without seeing them.",
-                ["recipe": ["type": "string"], "params": ["type": "object", "description": "Recipe parameters as string values, e.g. {\"tone\": \"friendly\"}.", "additionalProperties": ["type": "string"]]],
+            def("afm_run_recipe", "Run recipe", "Run a named recipe (e.g. action-items, meeting-notes, sentiment, entities, quiz, commit-message, explain-code, explain-error, draft, key-points) on text or a local file. `redact` with `path` returns the file with names, addresses, emails, phone numbers and ID numbers replaced by placeholders, so you can read it without seeing them. Recipes whose id starts with gh- read GitHub themselves when the GitHub integration is on: give no text, only params (gh-open-prs, gh-review-queue, gh-stale-prs, gh-incidents, gh-postmortem with ref, gh-ci-failures with repo). Their answer ends with links to every item read.",
+                ["recipe": ["type": "string"], "params": ["type": "object", "description": "Recipe parameters as string values, e.g. {\"tone\": \"friendly\"} or {\"repo\": \"owner/name\"}.", "additionalProperties": ["type": "string"]],
+                 "fetch_only": ["type": "boolean", "description": "For a recipe that reads GitHub: return what it fetched, without running the on-device model."]],
                 required: ["recipe"], withText: true),
         ]
     }
@@ -118,6 +119,23 @@ enum MCPTools {
             throw AFMError(code: "unknown_recipe", message: "No recipe named \"\(id)\".", suggestion: "Call afm_recipes to see the list.")
         }
         return output(try await RecipeRunner.run(r, input: text, params: params, options: options(a), config: config(a)))
+    }
+
+    /// A recipe that fetches its own input. Text or a path, when given, replaces the fetch.
+    static func sourceRecipe(_ r: Recipe, _ params: [String: String], _ a: [String: Any]) async throws -> ToolOutput {
+        let given = (try? input(a)) ?? ""
+        func links(_ items: [SourceItem]) -> [[String: Any]] { items.map { ["ref": $0.ref, "title": $0.title, "url": $0.url, "kind": $0.kind] } }
+        if a.bool("fetch_only") == true {
+            let m = try await RecipeSources.fetch(r, params: params)
+            return ToolOutput(text: m.isEmpty ? (m.emptyMessage ?? "Nothing matched.") : m.text,
+                              structured: ["query": m.description, "items": links(m.items)])
+        }
+        let res = try await RecipeRunner.run(r, input: given, params: params, options: options(a), config: config(a))
+        var o = output(res)
+        if let items = res.sources, !items.isEmpty {
+            o.text += "\n\nItems read:\n" + items.map { "- \($0.ref): \($0.url)" }.joined(separator: "\n")
+        }
+        return o
     }
 
     static func schemaText(_ a: [String: Any]) throws -> String? {
@@ -210,7 +228,11 @@ enum MCPTools {
 
         case "afm_run_recipe":
             let params = ((a["params"] as? [String: Any]) ?? [:]).reduce(into: [String: String]()) { $0[$1.key] = "\($1.value)" }
-            return try await recipe(a.str("recipe") ?? "", try input(a), params, a)
+            let id = a.str("recipe") ?? ""
+            if let r = RecipeBook.shared.find(id), r.hasSource {
+                return try await sourceRecipe(r, params, a)
+            }
+            return try await recipe(id, try input(a), params, a)
 
         default:
             throw AFMError(code: "unknown_tool", message: "Unknown tool \(name).")
@@ -235,7 +257,8 @@ enum MCPTools {
         let list: [[String: Any]] = RecipeBook.shared.all().map { r in
             [
                 "id": r.id, "title": r.title, "summary": r.summary, "category": r.category,
-                "structured": r.isStructured, "builtin": r.isBuiltin,
+                "structured": r.isStructured, "builtin": r.isBuiltin, "needs_text": r.needsInput,
+                "reads": r.source?.kind ?? "",
                 "params": r.params.map { p -> [String: Any] in
                     var d: [String: Any] = ["key": p.key, "label": p.label, "default": p.defaultValue]
                     if let c = p.choices { d["choices"] = c }

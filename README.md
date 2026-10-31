@@ -223,6 +223,36 @@ Read-only, drafts only. The on-device model does the reading and writing; AFM St
 | Up to five next-step issue drafts | `afm github next owner/repo` | `afm_github_next_steps` |
 | Blog post drafts in your blog repo's format | `afm github blog draft "topic" --from-repo owner/repo` | `afm_github_blog_draft` |
 
+#### GitHub recipes
+
+Six recipes read GitHub themselves, so you run them with no input. They appear in `afm recipes`, the app's Recipes pane and `afm_run_recipe` while the GitHub integration is on.
+
+| Recipe | What it reads | Example |
+| --- | --- | --- |
+| `gh-open-prs` | Open PRs in your repos, your orgs' repos, or named repos | `afm run gh-open-prs -p scope=orgs` |
+| `gh-review-queue` | PRs waiting on your review, ranked | `afm run gh-review-queue` |
+| `gh-stale-prs` | Open PRs idle for N days, oldest first, with one action each | `afm run gh-stale-prs -p days=30` |
+| `gh-incidents` | Open issues with incident labels, reading the top three in full | `afm run gh-incidents -p labels=incident,sev1` |
+| `gh-postmortem` | One incident thread, drafted as a blameless postmortem | `afm run gh-postmortem owner/repo#42` |
+| `gh-ci-failures` | Failed Actions runs, the failing steps and the end of their logs | `afm run gh-ci-failures owner/repo -p branch=all` |
+
+- **The query is in the recipe.** Code runs it and writes one short line per item, with ages worked out in code. The model only reads those lines. Exact counts, such as totals and the busiest repos, are written above the answer by code, not by the model.
+- **A word after the name** fills the recipe's first empty option, such as the repo or the issue. `-p repo=.` means the repo in the current folder, and `gh-ci-failures` uses it when you name none.
+- **For agents.** `--fetch-only` prints what a recipe reads without running the model, and `--fetch-only --json` adds every item's link. Agents such as Claude can read that instead of the model's answer. Over MCP, `afm_run_recipe` takes `fetch_only` too. Its answers end with a link to every item read.
+- **Your own.** Add a `source` to any recipe JSON in your recipes folder:
+
+```json
+{
+  "id": "my-bug-queue", "title": "Bug queue", "summary": "Open bugs in my repos", "category": "GitHub",
+  "instructions": "Use only the items given. Refer to each by repo#number.",
+  "template": "Group these bugs by repo and say which to fix first:\n\n{{input}}",
+  "params": [{ "key": "scope", "label": "Whose repos", "defaultValue": "mine" }],
+  "source": { "kind": "github.search", "query": "is:open is:issue label:bug {{owners}} updated:>={{date-30}}", "limit": 50 }
+}
+```
+
+Source kinds are `github.search`, `github.each` (search, then read the first `each` threads), `github.thread` (`ref`) and `github.runs` (`repo`, `branch`). In a query, `{{owners}}` becomes `repo:` qualifiers when the `repo` option is set, and otherwise your user and org qualifiers for the `scope` option. `{{date-N}}` is the date N days ago, and `{{date-{{days}}}}` works too. Up to `limit` items are fetched and counted, and `list` of them, 15 by default, are shown to the model, people's before bots'. Set `order` to `oldest` for stale work. Give a recipe text or `--file` and it skips the fetch and reads that instead.
+
 **Sign-in.** A GitHub token in the Keychain wins (`afm github auth set`, or the app's GitHub > Account tab). Otherwise AFM Studio borrows your `gh` login, then `GITHUB_TOKEN` or `GH_TOKEN`. A fine-grained, read-only token is the tightest option. `afm github auth rm` removes the Keychain token.
 
 **In chat.** With **Tools in chat** on, the on-device model gets three tools. They take plain choices rather than GitHub search syntax, because a 3-billion-parameter model guesses at qualifiers and can't know your organizations' names.

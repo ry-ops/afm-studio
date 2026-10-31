@@ -9,7 +9,7 @@ struct AFMStudioApp: App {
     @ViewState private var app = AppState()
 
     init() {
-        IntegrationRegistry.install([GitHubIntegration(), JevIntegration()])
+        AppState.installIntegrations()
         // Lets the app behave normally even when launched as a bare executable (swift run).
         NSApplication.shared.setActivationPolicy(.regular)
         DispatchQueue.main.async { NSApp.activate() }

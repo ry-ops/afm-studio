@@ -221,6 +221,28 @@ Next steps, run twice, named a roadmap item in every issue both times, and inclu
 
 **Still open.** Next steps sometimes drafts two issues about the same item, or a weak one such as a version check. Summaries of the roadmap still sometimes call planned work done.
 
+### GitHub recipes that fetch their own input
+
+**What was missing.** Recipes only turned text into text. Every GitHub feature was hard-coded Swift, so a new one, such as open PRs across your orgs or incident status, needed a code change. Agents working in a terminal had no way to ask for "my stale PRs" without writing GitHub queries themselves.
+
+**What's new.**
+
+- A recipe can have a `source` (`RecipeSource`). With no input, the runner asks the integration named in `source.kind` to fetch, then runs the recipe on what came back. Integrations provide sources and their own recipes through two new `AFMIntegration` members that default to none.
+- GitHub provides `github.search`, `github.each`, `github.thread` and `github.runs`, and six recipes: open PRs, review queue, stale PRs, incident status, postmortem draft and CI failures. They're listed only while the integration is on.
+- `afm run RECIPE --fetch-only [--json]` and `fetch_only` on `afm_run_recipe` return the fetched material and item links without the model.
+- Job logs come from a signed storage URL that GitHub redirects to. The redirect isn't followed automatically, so the token only ever goes to `api.github.com`.
+
+**What testing changed.** First live runs on real repos showed the limits of a 4K context:
+
+- Forty items overflowed one pass. Merging the chunks repeated items and made up refs such as "repo#183", and it took 88 seconds. Now up to 100 items are counted in code, and 15 are listed, people's before bots'. Open PRs takes 8 seconds.
+- Asked to copy the counts, the model garbled them. Code now writes an exact headline above the answer.
+- Given an example line, the model copied it for every PR. The prompt now gives a placeholder pattern.
+- CI logs were mostly table borders, runner group markers and color codes, and a nightly scan failing ten times on one commit read as ten failures. Logs are squeezed, repeat failures are grouped, and the material says how many distinct failures there are. Without that count the model invented run numbers and looped.
+
+**Tested.** `afm-selftest` covers date and owner filling, item lines, the headline, log excerpts, recipe JSON with a source, and the recipes appearing only while GitHub is on. Live runs covered all six recipes on the CLI, a user recipe JSON with `github.each`, and three recipes over MCP.
+
+**Still rough.** When one scan fails the same way on many commits, CI failures repeats itself, and it can take about a minute. Incident status depends on your labels: none of the repos tested had incident labels, so it was checked with a stand-in recipe over open issues.
+
 ## 1. Self-update from GitHub
 
 **Status.** The first part shipped after 0.1.0. AFM Studio checks GitHub's latest release, when you turn that on or ask, and shows an **Update available** button with the release notes and the steps to update. `afm update check` does the same from Terminal. The build records `AFMSourcePath`, `AFMSourceBranch` and `AFMCommit` in `Info.plist`. `scripts/make-signing-identity.sh` gives builds a stable signature, which settles the Keychain question below. Still to do: one-click **Update and Restart**, `afm update` installing by itself, and `afm update rollback`.

@@ -15,11 +15,17 @@ public enum GitHubOpenPRs {
         }
     }
 
-    /// The search query, or nil when the scope covers no owners (orgs only, with no orgs).
-    public static func query(login: String, orgs: [String], scope: Scope) -> String? {
+    /// `user:` and `org:` qualifiers for a scope. GitHub ORs repeated owner qualifiers.
+    public static func owners(login: String, orgs: [String], scope: Scope) -> [String] {
         var owners: [String] = []
         if scope != .orgs { owners.append("user:\(login)") }
         if scope != .mine { owners += orgs.map { "org:\($0)" } }
+        return owners
+    }
+
+    /// The search query, or nil when the scope covers no owners (orgs only, with no orgs).
+    public static func query(login: String, orgs: [String], scope: Scope) -> String? {
+        let owners = owners(login: login, orgs: orgs, scope: scope)
         guard !owners.isEmpty else { return nil }
         return "is:open is:pr archived:false " + owners.joined(separator: " ")
     }

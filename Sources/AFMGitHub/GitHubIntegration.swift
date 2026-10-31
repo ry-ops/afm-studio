@@ -15,9 +15,15 @@ public struct GitHubIntegration: AFMIntegration {
 
     public let manifest = IntegrationManifest(
         credentials: ["A GitHub token from your Keychain, or your existing `gh` login"],
-        hosts: ["api.github.com"],
+        hosts: ["api.github.com", "GitHub's log storage, for the CI failures recipe"],
         writes: .draftsOnly,
         dataNote: "Repo lists and your blog setup are saved on this Mac. Reading and drafting happen on device; nothing is posted, labeled or committed for you.")
+
+    public var recipes: [Recipe] { GitHubRecipes.all }
+
+    public func fetch(_ source: RecipeSource, values: [String: String], onProgress: (@Sendable (String) -> Void)?) async throws -> SourceMaterial? {
+        try await GitHubSources.fetch(source, values: values, onProgress: onProgress)
+    }
 
     public func status() async -> IntegrationStatus {
         guard IntegrationRegistry.isEnabled(id) else { return IntegrationStatus(connected: false, detail: "Turned off.") }

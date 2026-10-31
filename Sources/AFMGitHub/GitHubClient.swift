@@ -86,6 +86,26 @@ public struct GHCommit: Decodable, Sendable, Hashable {
 }
 
 struct GHCompare: Decodable { let commits: [GHCommit]; let files: [GHFile]?; let totalCommits: Int? }
+public struct GHRun: Decodable, Sendable, Hashable {
+    public let id: Int
+    public let name: String?
+    public let displayTitle: String?
+    public let headBranch: String?
+    public let headSha: String
+    public let event: String
+    public let conclusion: String?
+    public let htmlUrl: String
+    public let createdAt: String
+}
+struct GHRuns: Decodable { let workflowRuns: [GHRun] }
+public struct GHJob: Decodable, Sendable, Hashable {
+    public struct Step: Decodable, Sendable, Hashable { public let name: String; public let conclusion: String? }
+    public let id: Int
+    public let name: String
+    public let conclusion: String?
+    public let steps: [Step]?
+}
+struct GHJobs: Decodable { let jobs: [GHJob] }
 struct GHSearch<T: Decodable>: Decodable { let totalCount: Int; let items: [T] }
 struct GHTree: Decodable { struct Item: Decodable { let path: String; let type: String }; let tree: [Item] }
 struct GHContent: Decodable { let content: String?; let encoding: String? }
@@ -242,20 +262,51 @@ public struct GitHubClient: Sendable {
     public func latestRelease(_ slug: String) async throws -> GHRelease? {
         try? await get("/repos/\(slug)/releases/latest") as GHRelease
     }
+    /// Failed GitHub Actions runs, newest first.
+    public func failedRuns(_ slug: String, branch: String? = nil, limit: Int = 10) async throws -> [GHRun] {
+        var q = ["status": "failure", "per_page": String(min(limit, 100))]
+        if let branch { q["branch"] = branch }
+        let r: GHRuns = try await get("/repos/\(slug)/actions/runs", q)
+        return r.workflowRuns
+    }
+    /// The jobs of the latest attempt of a run.
+    public func jobs(_ slug: String, runID: Int) async throws -> [GHJob] {
+        let r: GHJobs = try await get("/repos/\(slug)/actions/runs/\(runID)/jobs", ["filter": "latest", "per_page": "50"])
+        return r.jobs
+    }
+    /// A job's plain-text log. GitHub answers with a redirect to a signed storage URL, which is
+    /// fetched without the token: the token is only ever sent to api.github.com.
+    public func jobLog(_ slug: String, jobID: Int) async throws -> String {
+        var req = URLRequest(url: URL(string: Self.base + "/repos/\(slug)/actions/jobs/\(jobID)/logs")!, timeoutInterval: 30)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        req.setValue("afm-studio", forHTTPHeaderField: "User-Agent")
+        let (_, resp) = try await URLSession.shared.data(for: req, delegate: NoRedirect())
+        guard let http = resp as? HTTPURLResponse, (300..<400).contains(http.statusCode),
+              let loc = http.value(forHTTPHeaderField: "Location"), let url = URL(string: loc), url.scheme == "https" else {
+            throw AFMError(code: "github_log", message: "GitHub didn't return a log for job \(jobID).")
+        }
+        let (data, logResp) = try await URLSession.shared.data(from: url)
+        guard ((logResp as? HTTPURLResponse)?.statusCode ?? 0) == 200 else {
+            throw AFMError(code: "github_log", message: "The log for job \(jobID) couldn't be downloaded.")
+        }
+        return String(decoding: data.suffix(400_000), as: UTF8.self)
+    }
+
     public func search(_ q: String, limit: Int = 20) async throws -> [GHIssue] {
         let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": try Self.checkedQuery(q), "per_page": String(min(limit, 100)), "sort": "updated"])
         return r.items
     }
 
     /// Every match up to `maxItems`, newest update first, with GitHub's total count.
-    public func searchAll(_ q: String, maxItems: Int = 300) async throws -> (total: Int, items: [GHIssue]) {
+    public func searchAll(_ q: String, maxItems: Int = 300, oldestFirst: Bool = false) async throws -> (total: Int, items: [GHIssue]) {
         let query = try Self.checkedQuery(q)
         var items: [GHIssue] = [], total = 0, page = 1
         while items.count < maxItems {
-            let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": query, "per_page": "100", "page": String(page), "sort": "updated"])
+            let r: GHSearch<GHIssue> = try await get("/search/issues", ["q": query, "per_page": String(min(100, maxItems)), "page": String(page), "sort": "updated", "order": oldestFirst ? "asc" : "desc"])
             total = r.totalCount
             items += r.items
-            if r.items.count < 100 || items.count >= total { break }
+            if r.items.count < min(100, maxItems) || items.count >= total { break }
             page += 1
         }
         return (total, Array(items.prefix(maxItems)))
@@ -281,6 +332,12 @@ public struct GitHubClient: Sendable {
             return "\(neg)\(parts[0]):@me"
         }.joined(separator: " ")
     }
+}
+
+/// Stops URLSession following a redirect, so the request's headers never go to another host.
+final class NoRedirect: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? { nil }
 }
 
 // MARK: - Browser links (drafts only: you review and submit them yourself)

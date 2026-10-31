@@ -549,6 +549,63 @@ await suite("Jev") {
     IntegrationRegistry.setPrefs(jev) { $0 = IntegrationPrefs() }
 }
 
+await suite("Recipe sources") {
+    let now = ISO8601DateFormatter().date(from: "2026-10-31T12:00:00Z")!
+    check(RecipeSource.render("updated:<{{date-{{days}}}}", ["days": "14"], now: now) == "updated:<2026-10-17", "date token after a parameter")
+    check(RecipeSource.render("x {{date-0}} {{nope}}", [:], now: now) == "x 2026-10-31 {{nope}}", "today, and unknown tokens are kept")
+    check(RecipeSource(kind: "github.search").integrationID == "github", "kind names its integration")
+
+    let fixed: @Sendable () async throws -> (String, [String]) = { ("me1", ["a", "b"]) }
+    let q1 = try await GitHubSources.query("is:open {{owners}}", values: ["scope": "all"], login: fixed)
+    check(q1 == "is:open user:me1 org:a org:b", "owners for all")
+    let q2 = try await GitHubSources.query("is:open {{owners}}", values: ["scope": "orgs"], login: fixed)
+    check(q2 == "is:open org:a org:b", "owners for orgs")
+    let q3 = try await GitHubSources.query("is:open {{owners}}", values: ["repo": "x/y, https://github.com/p/q"], login: fixed)
+    check(q3 == "is:open repo:x/y repo:p/q", "repo param wins, URLs parse")
+    let q4 = try await GitHubSources.query("label:{{labels}}  {{owners}}", values: ["labels": "sev1,outage", "scope": "mine"], login: fixed)
+    check(q4 == "label:sev1,outage user:me1", "labels and spaces")
+    do { _ = try await GitHubSources.query("{{owners}}", values: ["scope": "orgs"], login: { ("me1", []) }); check(false, "orgs with no orgs should throw") } catch { passed += 1 }
+
+    let one = #"[{"id":7,"number":7,"title":"Fix login","state":"open","user":{"login":"sam"},"labels":[{"name":"bug"}],"comments":2,"html_url":"https://github.com/a/x/pull/7","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-30T00:00:00Z","pull_request":{"url":"x"},"repository_url":"https://api.github.com/repos/a/x","draft":true}]"#
+    let issue = try GitHubClient.decoder.decode([GHIssue].self, from: Data(one.utf8))[0]
+    let line = GitHubSources.line(issue, now: now)
+    check(line == "- a/x#7 [PR, draft] \"Fix login\" by @sam. Opened 2026-10-01 (30 days ago), updated 2026-10-30 (1 day ago). 2 comments. Labels: bug.", "item line: \(line)")
+
+    let log = (1...60).map { "2026-10-30T10:00:\(String(format: "%02d", $0 % 60)).1234567Z line \($0)" }.joined(separator: "\n")
+        + "\n2026-10-30T10:01:00.0000000Z ##[error]Process completed with exit code 1.\n2026-10-30T10:01:01.0000000Z Cleaning up"
+    let ex = GitHubSources.logExcerpt(log)
+    check(ex.hasPrefix("line 41") && ex.contains("##[error]Process completed") && ex.hasSuffix("Cleaning up"), "excerpt starts 20 lines before the error, without timestamps")
+    check(GitHubSources.logExcerpt("##[group]Run x\n\u{1B}[36;1mnpm test\u{1B}[0m\n##[endgroup]") == "npm test", "runner markers and color codes removed")
+    let h = GitHubSources.headline(total: 9, found: [issue], now: now)
+    check(h == "**9 pull requests** in a/x.", "headline: \(h)")
+    check(GitHubSources.logExcerpt("| a    |     b |\n+--------------+\nok") == "| a | b |\nok", "padding squeezed, border-only lines dropped")
+    check(GitHubSources.logExcerpt((1...100).map { "l\($0)" }.joined(separator: "\n")).hasPrefix("l61"), "no error: the last 40 lines")
+
+    // A user recipe with a source round-trips through JSON and doesn't need text.
+    let json = #"{"id":"mine","title":"Mine","summary":"","symbol":"x","category":"GitHub","instructions":"i","template":"{{input}}","params":[],"source":{"kind":"github.search","query":"is:open author:@me","limit":5}}"#
+    let r = try JSONDecoder().decode(Recipe.self, from: Data(json.utf8))
+    check(r.source?.query == "is:open author:@me" && r.source?.limit == 5 && r.hasSource && !r.needsInput, "source decodes")
+    check(RecipeBook.shared.find("summarize")?.needsInput == true, "plain recipes still need text")
+
+    // GitHub's recipes appear only while the integration is on, and the source refuses while it's off.
+    let gh = GitHubIntegration.integrationID
+    check(RecipeBook.shared.find("gh-open-prs") == nil, "hidden while GitHub is off")
+    do { _ = try await RecipeSources.fetch(GitHubRecipes.all[0]); check(false, "fetch should refuse while off") }
+    catch { check(AFMError.from(error).code == "integration_off", "refuses while off") }
+    IntegrationRegistry.setPrefs(gh) { $0.enabled = true }
+    let ids = RecipeBook.shared.all().filter(\.hasSource).map(\.id)
+    check(ids == ["gh-open-prs", "gh-review-queue", "gh-stale-prs", "gh-incidents", "gh-postmortem", "gh-ci-failures"], "six GitHub recipes once on")
+    check(RecipeBook.shared.find("gh-open-prs")?.isBuiltin == true, "marked built-in")
+    IntegrationRegistry.setPrefs(gh) { $0 = IntegrationPrefs() }
+    for rec in GitHubRecipes.all {
+        check(rec.template.contains("{{input}}") && rec.source != nil, "\(rec.id) reads its source")
+        if let q = rec.source?.query {
+            let filled = RecipeSource.render(q, rec.defaults(), now: now)
+            check(!filled.replacingOccurrences(of: "{{owners}}", with: "").contains("{{"), "\(rec.id) query fills: \(filled)")
+        }
+    }
+}
+
 if !CommandLine.arguments.contains("--offline") {
     if SystemLanguageModel.default.isAvailable {
         await suite("Live model") {

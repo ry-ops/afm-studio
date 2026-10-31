@@ -31,6 +31,7 @@ struct Args {
     var limit = 20
     var stats = false
     var help = false
+    var fetchOnly = false
 
     var options: GenOptions { GenOptions(temperature: temperature, maxTokens: maxTokens, sampling: sampling, topK: topK, topP: topP, seed: seed) }
     var config: ModelConfig {
@@ -90,6 +91,7 @@ func parseArgs(_ raw: [String]) -> Args {
         case "--rounds", "--runs": a.rounds = Int(value(arg)) ?? 1
         case "-n", "--limit": a.limit = Int(value(arg)) ?? 20
         case "--stats", "-v": a.stats = true
+        case "--fetch-only": a.fetchOnly = true
         case "--version": a.positionals.insert("version", at: 0)
         case "--chat", "--claude", "--model", "--effort", "--base", "--from", "--to", "--focus", "--notes", "--from-repo", "--days", "--engine", "--option", "--level":
             a.positionals.append(arg); a.positionals.append(value(arg))
@@ -174,6 +176,8 @@ let help = """
   afm chat [--session NAME]       Interactive chat, saved and resumable
   afm run RECIPE [text]           Run a recipe on text, --file or stdin
   afm recipes                     List recipes
+  afm run gh-open-prs [owner/repo] Recipes that read GitHub fetch their own input
+  afm run RECIPE --fetch-only     Print what a GitHub recipe reads, without the model
   afm extract --fields SPEC       JSON extraction, e.g. --fields "name:string, total:number"
   afm extract --schema FILE       JSON extraction with a JSON Schema file
   afm tokens [text]               Count tokens with the on-device tokenizer
@@ -235,8 +239,40 @@ func cmdRun(_ a: Args) async {
         fail("which recipe?", hint: "Run `afm recipes` to list them.", code: 2)
     }
     guard let recipe = RecipeBook.shared.find(id) else { fail("no recipe named \(id)", hint: "Run `afm recipes`.", code: 2) }
-    let input = gatherInput(a, positionals: Array(a.positionals.dropFirst()))
-    if input.isEmpty && recipe.template.contains("{{input}}") { fail("no input", hint: "Pass text, --file PATH, or pipe into afm.", code: 2) }
+    var params = a.params
+    let input: String
+    if recipe.hasSource {
+        // It fetches its own input. A word after the name fills its first empty parameter
+        // (`afm run gh-postmortem owner/repo#12`), and stdin is left alone, so a caller holding
+        // the pipe open can't hang it. Give --file to run it on your own material instead.
+        let rest = Array(a.positionals.dropFirst())
+        if !rest.isEmpty {
+            guard let p = recipe.params.first(where: { $0.defaultValue.isEmpty && (params[$0.key] ?? "").isEmpty }) else {
+                fail("\(id) takes no text", hint: "Set its options with -p KEY=VALUE; see `afm recipes`.", code: 2)
+            }
+            params[p.key] = rest.joined(separator: " ")
+        }
+        input = a.file.map(readFileArg) ?? ""
+    } else {
+        if a.fetchOnly { fail("\(id) doesn't fetch anything", hint: "--fetch-only works with recipes that read GitHub, such as gh-open-prs.", code: 2) }
+        input = gatherInput(a, positionals: Array(a.positionals.dropFirst()))
+        if input.isEmpty && recipe.needsInput { fail("no input", hint: "Pass text, --file PATH, or pipe into afm.", code: 2) }
+    }
+    if a.fetchOnly {
+        do {
+            var progress: (@Sendable (String) -> Void)? = nil
+            if stderrTTY { progress = { s in eprint(dim("  … \(s)", tty: true)) } }
+            let m = try await RecipeSources.fetch(recipe, params: params, onProgress: progress)
+            if a.json {
+                let enc = JSONEncoder(); enc.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+                struct Fetched: Encodable { let query: String; let items: [SourceItem]; let text: String }
+                out(String(decoding: (try? enc.encode(Fetched(query: m.description, items: m.items, text: m.text))) ?? Data(), as: UTF8.self))
+            } else {
+                out(m.isEmpty ? (m.emptyMessage ?? "Nothing matched.") : m.text)
+            }
+        } catch { fail(error) }
+        return
+    }
     requireModel()
     let streaming = shouldStream(a)
     let printer = streamPrinter()
@@ -246,11 +282,14 @@ func cmdRun(_ a: Args) async {
         let partial: (@Sendable (String) -> Void)? = streaming ? printer : nil
         var progress: (@Sendable (RecipeRunner.Progress) -> Void)? = nil
         if stderrTTY { progress = { p in eprint(dim("  … \(p.stage)", tty: true)) } }
-        let r = try await RecipeRunner.run(recipe, input: input, params: a.params, options: a.options, config: cfg,
+        let r = try await RecipeRunner.run(recipe, input: input, params: params, options: a.options, config: cfg,
                                            onPartial: partial, onProgress: progress)
         if streaming { out("") }
         printResult(r, a: a, streamed: streaming)
-        History.append(HistoryEntry(source: "cli", kind: "recipe", title: recipe.title, input: input, output: r.text, seconds: r.seconds, outputTokens: r.outputTokens))
+        if !a.json, let items = r.sources, !items.isEmpty {
+            eprint(dim("\nRead \(items.count) item\(items.count == 1 ? "" : "s"). Links: afm run \(recipe.id) --fetch-only --json", tty: stderrTTY))
+        }
+        History.append(HistoryEntry(source: "cli", kind: "recipe", title: recipe.title, input: r.sourceText ?? input, output: r.text, seconds: r.seconds, outputTokens: r.outputTokens))
     } catch { if streaming { out("") }; fail(error) }
 }
 
@@ -289,6 +328,7 @@ func cmdRecipes(_ a: Args) {
             var line = "  \(accent(id)) \(r.summary)"
             if r.isStructured { line += dim(" [json]") }
             if !r.isBuiltin { line += dim(" [yours]") }
+            if let src = r.source { line += dim(" [reads \(IntegrationRegistry.find(src.integrationID)?.name ?? src.integrationID)]") }
             out(line)
             for p in r.params {
                 let choices = p.choices.map { " (" + $0.joined(separator: " | ") + ")" } ?? ""

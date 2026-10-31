@@ -33,9 +33,16 @@ public struct GenerationResult: Codable, Sendable, Equatable, Hashable {
     public var outputTokens: Int?
     public var toolCalls: [String]
     public var chunks: Int
+    /// For a recipe that fetched its own input: what it found, with links.
+    public var sources: [SourceItem]?
+    /// For a recipe that fetched its own input: the text the model read.
+    public var sourceText: String?
 
     public init(text: String, isJSON: Bool = false, seconds: Double = 0, firstTokenSeconds: Double? = nil,
-                promptTokens: Int? = nil, outputTokens: Int? = nil, toolCalls: [String] = [], chunks: Int = 1) {
+                promptTokens: Int? = nil, outputTokens: Int? = nil, toolCalls: [String] = [], chunks: Int = 1,
+                sources: [SourceItem]? = nil, sourceText: String? = nil) {
+        self.sources = sources
+        self.sourceText = sourceText
         self.text = text
         self.isJSON = isJSON
         self.seconds = seconds
