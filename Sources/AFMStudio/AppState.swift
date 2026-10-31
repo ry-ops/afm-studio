@@ -2,6 +2,7 @@ import SwiftUI
 import AFMKit
 import AFMServer
 import AFMGitHub
+import AFMJev
 
 enum Pane: Hashable {
     case chat(String)
@@ -22,7 +23,14 @@ final class AppState {
     let terminal = TerminalStore()
     let updates = UpdateState()
 
+    /// The integrations this app ships. Installed here, before the first recipe list is built,
+    /// because SwiftUI creates AppState before the App's own init body runs.
+    static func installIntegrations() {
+        if IntegrationRegistry.all.isEmpty { IntegrationRegistry.install([GitHubIntegration(), JevIntegration()]) }
+    }
+
     init() {
+        Self.installIntegrations()
         reloadSessions()
         reloadRecipes()
         if let first = sessions.first { pane = .chat(first.id) }

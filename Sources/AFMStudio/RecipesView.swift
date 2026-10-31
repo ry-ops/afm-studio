@@ -13,7 +13,7 @@ struct RecipesView: View {
     }
 
     var categories: [String] {
-        let base = ["Understand", "Write", "Extract", "Code"]
+        let base = ["Understand", "Write", "Extract", "Code", "GitHub"]
         let extra = Set(filtered.map(\.category)).subtracting(base).sorted()
         return (base + extra).filter { c in filtered.contains { $0.category == c } }
     }
@@ -59,6 +59,8 @@ struct RecipesView: View {
             }
             .navigationDestination(for: Recipe.self) { RecipeRunView(recipe: $0) }
         }
+        // Integration recipes come and go with their integration's switch.
+        .onAppear { app.reloadRecipes() }
         .sheet(item: $editing) { r in
             RecipeEditor(recipe: r) { saved in
                 try? RecipeBook.shared.save(saved)
@@ -112,7 +114,7 @@ struct RecipeRunView: View {
     @ViewState private var options = GenOptions()
     @ViewState private var config = ModelConfig()
 
-    var needsInput: Bool { recipe.template.contains("{{input}}") }
+    var needsInput: Bool { recipe.needsInput }
 
     var body: some View {
         AdaptiveSplit(leadingMinWidth: 380, trailingMinWidth: 360) {
@@ -126,13 +128,20 @@ struct RecipeRunView: View {
                         }
                     }
                     if needsInput { InputEditor(text: $input, minHeight: 240) }
+                    if let src = recipe.source {
+                        Label("Reads \(IntegrationRegistry.find(src.integrationID)?.name ?? src.integrationID) when you run it. Nothing is posted.", systemImage: "arrow.down.circle")
+                            .font(.callout).foregroundStyle(.secondary)
+                    }
                     if !recipe.params.isEmpty {
                         Card(title: "Options", symbol: "slider.horizontal.3") {
                             ForEach(recipe.params) { p in
                                 if let choices = p.choices {
                                     Picker(p.label, selection: binding(p)) { ForEach(choices, id: \.self) { Text($0).tag($0) } }
                                 } else {
-                                    TextField(p.label, text: binding(p), prompt: Text(p.defaultValue))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        TextField(p.label, text: binding(p), prompt: Text(p.defaultValue.isEmpty ? p.label : p.defaultValue))
+                                        if let help = p.help { Text(help).font(.caption).foregroundStyle(.secondary) }
+                                    }
                                 }
                             }
                         }
@@ -187,6 +196,15 @@ struct RecipeRunView: View {
                     if output.isEmpty && !running {
                         ContentUnavailableView("No output yet", systemImage: recipe.symbol, description: Text("Run the recipe to see results here."))
                     }
+                }
+                if let items = result?.sources, !items.isEmpty {
+                    DisclosureGroup("Read \(items.count) item\(items.count == 1 ? "" : "s")") {
+                        VStack(alignment: .leading, spacing: 4) {
+                            ForEach(items, id: \.url) { i in
+                                if let u = URL(string: i.url) { Link("\(i.ref)  \(i.title)", destination: u).lineLimit(1) }
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                    }.font(.callout)
                 }
                 if let result { ResultStats(result: result) }
             }

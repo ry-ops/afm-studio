@@ -80,6 +80,15 @@ public protocol AFMIntegration: Sendable {
     func status() async -> IntegrationStatus
     var mcpTools: [IntegrationTool] { get }
     func modelTools(tracker: ToolCallTracker?) -> [any Tool]
+    /// Recipes that ship with the integration. They appear only while it's on.
+    var recipes: [Recipe] { get }
+    /// Resolves a recipe source whose kind starts with this integration's id, or nil for a kind it doesn't know.
+    func fetch(_ source: RecipeSource, values: [String: String], onProgress: (@Sendable (String) -> Void)?) async throws -> SourceMaterial?
+}
+
+extension AFMIntegration {
+    public var recipes: [Recipe] { [] }
+    public func fetch(_ source: RecipeSource, values: [String: String], onProgress: (@Sendable (String) -> Void)?) async throws -> SourceMaterial? { nil }
 }
 
 public enum IntegrationRegistry {
@@ -96,6 +105,12 @@ public enum IntegrationRegistry {
 
     public static func prefs(_ id: String, _ settings: AFMSettings = .load()) -> IntegrationPrefs { settings.integrationPrefs[id] ?? IntegrationPrefs() }
     public static func isEnabled(_ id: String) -> Bool { prefs(id).enabled }
+
+    /// Recipes from integrations that are on, marked built-in.
+    public static var enabledRecipes: [Recipe] {
+        let s = AFMSettings.load()
+        return all.filter { prefs($0.id, s).enabled }.flatMap(\.recipes).map { var r = $0; r.builtin = true; return r }
+    }
 
     /// Integrations whose tools the on-device model may use.
     public static var chatEnabled: [any AFMIntegration] {
