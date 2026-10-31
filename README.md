@@ -225,7 +225,7 @@ Read-only, drafts only. The on-device model does the reading and writing; AFM St
 
 #### GitHub recipes
 
-Six recipes read GitHub themselves, so you run them with no input. They appear in `afm recipes`, the app's Recipes pane and `afm_run_recipe` while the GitHub integration is on.
+Six recipes read GitHub themselves, so you run them with no input. They appear under **GitHub** in Workbench › Recipes, in `afm recipes` and in `afm_run_recipe` while the GitHub integration is on. Each card says it reads GitHub and that nothing is posted, and the answer ends with links to every item it read.
 
 | Recipe | What it reads | Example |
 | --- | --- | --- |
@@ -237,6 +237,8 @@ Six recipes read GitHub themselves, so you run them with no input. They appear i
 | `gh-ci-failures` | Failed Actions runs, grouped by what failed, with the failing step's own output | `afm run gh-ci-failures owner/repo -p branch=all` |
 
 - **The query is in the recipe.** Code runs it and writes one short line per item, with ages worked out in code. The model only reads those lines. Exact counts, such as totals and the busiest repos, are written above the answer by code, not by the model.
+- **CI failures** groups runs that failed the same way, so a scan failing on every push counts once, with how many runs and commits it covers. Each failure's log excerpt is the failing step's own output.
+- **Incident labels** can be anything your repos use, comma-separated, including labels with colons or spaces. When no open issue matches, the answer names the labels it checked.
 - **A word after the name** fills the recipe's first empty option, such as the repo or the issue. `-p repo=.` means the repo in the current folder, and `gh-ci-failures` uses it when you name none.
 - **For agents.** `--fetch-only` prints what a recipe reads without running the model, and `--fetch-only --json` adds every item's link. Agents such as Claude can read that instead of the model's answer. Over MCP, `afm_run_recipe` takes `fetch_only` too. Its answers end with a link to every item read.
 - **Your own.** Add a `source` to any recipe JSON in your recipes folder:
