@@ -241,7 +241,10 @@ Next steps, run twice, named a roadmap item in every issue both times, and inclu
 
 **Tested.** `afm-selftest` covers date and owner filling, item lines, the headline, log excerpts, recipe JSON with a source, and the recipes appearing only while GitHub is on. Live runs covered all six recipes on the CLI, a user recipe JSON with `github.each`, and three recipes over MCP.
 
-**Still rough.** When one scan fails the same way on many commits, CI failures repeats itself, and it can take about a minute. Incident status depends on your labels: none of the repos tested had incident labels, so it was checked with a stand-in recipe over open issues.
+- Runs that fail the same way (same workflow, same failing jobs and steps) are one failure however many commits they span, and Dependabot's per-run names are trimmed so its runs group too. Job lists are fetched in parallel, and each log excerpt is the failing step's own output: the step's echoed script, routine INFO and WARN lines and empty settings are dropped, because the model blamed whatever sat near the error. On DriveIQ, 15 failed runs became 2 failures and the recipe takes about 10 seconds.
+- Incident labels are quoted, so labels with colons or spaces work, and the defaults add the severity labels these repos use (`severity:critical`, `severity:high`, `escalation:hard-stop`). When nothing matches, the message names the labels it checked. Each thread read in full is cut to its start and its latest end, so three threads fit one pass: about 11 seconds instead of a minute.
+
+**Still rough.** None of the tested repos had open issues with incident or severity labels, so incident status was checked with other labels.
 
 ## 1. Self-update from GitHub
 

@@ -39,6 +39,9 @@ public enum GitHubSources {
 
     /// The query with parameters, dates and `{{owners}}` filled in.
     public static func query(_ template: String, values: [String: String], login: @Sendable () async throws -> (String, [String])) async throws -> String {
+        var values = values
+        // "incident, severity:high" → "incident","severity:high": one label each, any of them matches.
+        if let raw = values["labels"] { values["labels"] = labelList(raw) }
         var q = RecipeSource.render(template, values)
         if q.contains("{{owners}}") {
             let list = repos(values["repo"])
@@ -56,6 +59,18 @@ public enum GitHubSources {
             q = q.replacingOccurrences(of: "{{owners}}", with: owners.joined(separator: " "))
         }
         return q.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    /// The start of a thread (what it's about) and its end (the latest updates), without the middle.
+    public static func headAndTail(_ t: String, max: Int) -> String {
+        guard t.count > max else { return t }
+        let head = max * 2 / 5, tail = max - head
+        return String(t.prefix(head)) + "\n\n[… \(t.count - head - tail) characters of older comments skipped …]\n\n" + String(t.suffix(tail))
+    }
+
+    public static func labelList(_ raw: String) -> String {
+        raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "\"", with: "") }
+            .filter { !$0.isEmpty }.map { "\"\($0)\"" }.joined(separator: ",")
     }
 
     static func days(since iso: String, now: Date) -> Int? {
@@ -122,7 +137,8 @@ public enum GitHubSources {
         onProgress?("Searching GitHub: \(q)")
         let (total, found) = try await gh.searchAll(q, maxItems: limit, oldestFirst: oldest)
         guard !found.isEmpty else {
-            return SourceMaterial(text: "", items: [], description: q, emptyMessage: "Nothing on GitHub matches `\(q)`.")
+            return SourceMaterial(text: "", items: [], description: q, emptyMessage: "Nothing on GitHub matches `\(q)`."
+                                  + (values["labels"].map { "\n\nChecked the labels \(labelList($0).replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: ",", with: ", ")). If your repos use others, change them in the labels option (-p labels=… in Terminal)." } ?? ""))
         }
         var text = overview(q: q, total: total, found: found, oldest: oldest, now: Date())
         let shown = listed(found, max: min(max(source.list ?? 15, 1), 40))
@@ -132,7 +148,8 @@ public enum GitHubSources {
             guard let ref = GHRef.parse(i.ref) else { continue }
             onProgress?("Reading \(i.ref) (\(n + 1) of \(min(read, found.count)))")
             let t = try await GitHubWorkflows.threadText(gh, ref, includeDiff: source.diff ?? false).text
-            text += "\n\n---\n\n" + GitHubWorkflows.clip(t, 3500)
+            // Three threads and the list fit one pass of the 4K context only when each is short.
+            text += "\n\n---\n\n" + headAndTail(t, max: 1800)
         }
         return SourceMaterial(text: text, items: found.map(item), description: q, headline: headline(total: total, found: found, now: Date()))
     }
@@ -172,26 +189,39 @@ public enum GitHubSources {
 
     // MARK: Actions runs
 
-    /// The part of a job log worth reading: around the first error, or the end. Timestamps are removed.
+    /// The part of a job log worth reading: the failing step's own output up to its first error, or the end.
+    /// Timestamps, the runner's bookkeeping and each step's echoed script are removed.
     public static func logExcerpt(_ log: String, maxChars: Int = 2500) -> String {
-        let stamp = try? NSRegularExpression(pattern: #"^\d{4}-\d\d-\d\dT[\d:.]+Z ?"#)
-        let lines = log.split(separator: "\n", omittingEmptySubsequences: false).map { l -> String in
-            let s = String(l).replacingOccurrences(of: "\r", with: "")
-            var bare = stamp.map { $0.stringByReplacingMatches(in: s, range: NSRange(s.startIndex..., in: s), withTemplate: "") } ?? s
-            bare = bare.replacingOccurrences(of: #"\x1B\[[0-9;]*m"#, with: "", options: .regularExpression)
-            return squeeze(bare)
-        }.filter { l in
+        // The runner's stamp, and often the tool's own after it, separated by a space or a tab.
+        let stamp = try? NSRegularExpression(pattern: #"^(\d{4}-\d\d-\d\dT[\d:.]+Z\s*)+"#)
+        // Each line, and whether it starts a step. A step's header (its script, shell, env and inputs)
+        // runs from "##[group]Run …" to "##[endgroup]" and is the code, not what happened.
+        var lines: [(text: String, step: Bool)] = [], inHeader = false
+        for l in log.split(separator: "\n", omittingEmptySubsequences: false) {
+            let raw = String(l).replacingOccurrences(of: "\r", with: "")
+            var t = stamp.map { $0.stringByReplacingMatches(in: raw, range: NSRange(raw.startIndex..., in: raw), withTemplate: "") } ?? raw
+            t = squeeze(t.replacingOccurrences(of: #"\x1B\[[0-9;]*m"#, with: "", options: .regularExpression))
+            if t.hasPrefix("##[group]Run ") { inHeader = true; lines.append((t, true)); continue }
+            if inHeader { if t.hasPrefix("##[endgroup]") { inHeader = false }; continue }
+            lines.append((t, false))
+        }
+        let window: ArraySlice<(text: String, step: Bool)>
+        if let e = lines.firstIndex(where: { $0.text.contains("##[error]") }) {
+            let start = lines[..<e].lastIndex(where: \.step) ?? 0
+            var end = e + 1
+            while end < min(lines.count, e + 4), !lines[end].step, !lines[end].text.hasPrefix("##[") { end += 1 }
+            window = lines[max(start, e - 20)..<end]
+        } else {
+            window = lines[...]
+        }
+        let kept = window.map(\.text).filter { l in
             // The runner's own bookkeeping says nothing about why a step failed.
             let noise = ["##[group]", "##[endgroup]", "##[start-action", "##[end-action", "shell: /usr/bin/bash"]
-            return l.contains { $0.isLetter || $0.isNumber } && !noise.contains { l.hasPrefix($0) }
+            // Routine tool chatter and empty settings. The model reads them as the cause when they're near the error.
+            let chatter = l.range(of: #"^(\[?(INFO|DEBUG|TRACE|WARN|WARNING|info|debug)\]?\b|[A-Z][A-Z0-9_]+:\s*$)"#, options: .regularExpression) != nil
+            return l.contains { $0.isLetter || $0.isNumber } && !chatter && !noise.contains { l.hasPrefix($0) }
         }
-        let picked: ArraySlice<String>
-        if let e = lines.firstIndex(where: { $0.contains("##[error]") }) {
-            picked = lines[max(0, e - 20)..<min(lines.count, e + 3)]
-        } else {
-            picked = lines.suffix(40)
-        }
-        let text = picked.joined(separator: "\n")
+        let text = kept.suffix(40).joined(separator: "\n")
         return text.count <= maxChars ? text : "…" + String(text.suffix(maxChars))
     }
 
@@ -226,29 +256,26 @@ public enum GitHubSources {
             return SourceMaterial(text: "", items: [], description: "\(slug) failed runs\(on)", emptyMessage: "No failed GitHub Actions runs\(on) in \(slug).")
         }
         let now = Date()
-        // The same workflow failing again on the same commit (a nightly scan) is one failure.
-        var groups: [(run: GHRun, count: Int)] = []
-        for r in runs {
-            if let i = groups.firstIndex(where: { $0.run.name == r.name && $0.run.headSha == r.headSha }) { groups[i].count += 1 }
-            else { groups.append((r, 1)) }
+        // Every run's job list, fetched together. It costs no logs and says what failed.
+        let jobsByRun = await withTaskGroup(of: (Int, [GHJob]).self) { group in
+            for r in runs { group.addTask { (r.id, (try? await gh.jobs(slug, runID: r.id)) ?? []) } }
+            var out: [Int: [GHJob]] = [:]
+            for await (id, jobs) in group { out[id] = jobs }
+            return out
         }
+        // The same thing failing on run after run (a security scan on every push) is one failure.
+        let groups = failureGroups(runs, jobs: jobsByRun)
         let read = min(max(source.each ?? 3, 1), 5)
         let full = min(read, groups.count)
         var text = "The \(runs.count) latest failed GitHub Actions runs\(on) in \(slug) are \(groups.count) distinct failure\(groups.count == 1 ? "" : "s"). \(full == 1 ? "1 is" : "\(full) are") read in full below.\n"
-        text += groups.map { g in
-            let r = g.run
-            let title = r.displayTitle.flatMap { $0 == r.name || $0.isEmpty ? nil : ", \"\($0)\"" } ?? ""
-            let again = g.count > 1 ? " Failed \(g.count) times on this commit; the latest" : ""
-            return "- Run \(r.id): workflow \"\(r.name ?? "?")\" on \(r.headBranch ?? "?") at \(String(r.headSha.prefix(7)))\(title), triggered by \(r.event).\(again) \(ago(r.createdAt, now: now))."
-        }.joined(separator: "\n")
-        for (n, r) in groups.map(\.run).prefix(read).enumerated() {
-            onProgress?("Reading the failed jobs of run \(r.id) (\(n + 1) of \(min(read, groups.count)))")
-            let jobs = (try? await gh.jobs(slug, runID: r.id)) ?? []
-            let failed = jobs.filter { $0.conclusion == "failure" || $0.conclusion == "timed_out" }
-            text += "\n\n---\n\nRun \(r.id), workflow \"\(r.name ?? "?")\":"
-            if failed.isEmpty { text += " no failed jobs were listed (it may have been cancelled or failed to start)." }
-            // One log per run keeps three runs in a single pass of the 4K context.
-            for (k, j) in failed.prefix(3).enumerated() {
+        text += groups.map { describe($0, now: now) }.joined(separator: "\n")
+        for (n, g) in groups.prefix(read).enumerated() {
+            let r = g.latest
+            onProgress?("Reading the log of \(g.workflow) (\(n + 1) of \(full))")
+            text += "\n\n---\n\nRun \(r.id), workflow \"\(g.workflow)\"" + (g.runs.count > 1 ? ", the latest of \(g.runs.count) runs that failed this way:" : ":")
+            if g.failed.isEmpty { text += " no failed jobs were listed (it may have been cancelled or failed to start)." }
+            // One log per failure keeps three failures in a single pass of the 4K context.
+            for (k, j) in g.failed.prefix(3).enumerated() {
                 let steps = (j.steps ?? []).filter { $0.conclusion == "failure" }.map(\.name)
                 text += "\nJob \"\(j.name)\" failed" + (steps.isEmpty ? "." : " at step: \(steps.joined(separator: ", ")).")
                 guard k == 0 else { continue }
@@ -260,9 +287,51 @@ public enum GitHubSources {
             }
         }
         let items = runs.map { SourceItem(ref: "\(slug) run \($0.id)", title: $0.displayTitle ?? $0.name ?? "Run \($0.id)", url: $0.htmlUrl, kind: "workflow_run", updated: $0.createdAt) }
-        let top = groups.prefix(3).map { "\($0.run.name ?? "?")\($0.count > 1 ? " (×\($0.count))" : "")" }.joined(separator: ", ")
+        let top = groups.prefix(3).map { "\($0.workflow)\($0.runs.count > 1 ? " (×\($0.runs.count))" : "")" }.joined(separator: ", ")
         let headline = "**\(groups.count) distinct failure\(groups.count == 1 ? "" : "s")** in the last \(runs.count) failed runs\(on) in \(slug): \(top)\(groups.count > 3 ? ", and more" : "")."
         return SourceMaterial(text: text, items: items, description: "\(slug) failed runs\(on)", headline: headline)
+    }
+
+    /// Runs that failed the same way: one workflow, the same failing jobs and steps. Newest first.
+    public struct FailureGroup: Sendable {
+        public let workflow: String
+        public let failed: [GHJob]
+        public var runs: [GHRun]
+        public var latest: GHRun { runs[0] }
+        public var commits: Int { Set(runs.map(\.headSha)).count }
+    }
+
+    /// A workflow's name without the run number Dependabot adds ("… - Update #1667914349").
+    public static func workflowName(_ name: String?) -> String {
+        let n = (name ?? "?").replacingOccurrences(of: #"\s*-?\s*(Update\s*)?#\d+$"#, with: "", options: .regularExpression)
+        return n.isEmpty ? "?" : n
+    }
+
+    public static func failureGroups(_ runs: [GHRun], jobs: [Int: [GHJob]]) -> [FailureGroup] {
+        var groups: [FailureGroup] = [], keys: [String] = []
+        for r in runs {
+            let failed = (jobs[r.id] ?? []).filter { $0.conclusion == "failure" || $0.conclusion == "timed_out" }
+            let where_ = failed.map { j in j.name + ":" + (j.steps ?? []).filter { $0.conclusion == "failure" }.map(\.name).joined(separator: ",") }.sorted()
+            let key = workflowName(r.name) + "|" + where_.joined(separator: ";")
+            if let i = keys.firstIndex(of: key) { groups[i].runs.append(r) }
+            else { keys.append(key); groups.append(FailureGroup(workflow: workflowName(r.name), failed: failed, runs: [r])) }
+        }
+        return groups
+    }
+
+    static func describe(_ g: FailureGroup, now: Date) -> String {
+        let r = g.latest
+        let title = r.displayTitle.flatMap { $0 == r.name || $0.isEmpty ? nil : ", \"\($0)\"" } ?? ""
+        let triggers = Array(Set(g.runs.map(\.event))).sorted().joined(separator: " and ")
+        let branches = Array(Set(g.runs.compactMap(\.headBranch))).sorted()
+        var line = "- Run \(r.id): workflow \"\(g.workflow)\" on \(branches.isEmpty ? "?" : branches.joined(separator: ", "))"
+        if g.runs.count == 1 {
+            line += " at \(r.headSha.prefix(7))\(title), triggered by \(r.event). \(ago(r.createdAt, now: now))."
+        } else {
+            let since = g.runs.last.map { ago($0.createdAt, now: now) } ?? "?"
+            line += ". Failed the same way \(g.runs.count) times on \(g.commits) commit\(g.commits == 1 ? "" : "s"), triggered by \(triggers). Latest at \(r.headSha.prefix(7))\(title), \(ago(r.createdAt, now: now)); first \(since)."
+        }
+        return line
     }
 }
 
@@ -298,7 +367,7 @@ public enum GitHubRecipes {
                symbol: "flame", category: "GitHub",
                instructions: "You write incident status updates for an engineering team. Be factual and brief. " + rules + " If the thread doesn't say something, write \"not stated\".",
                template: "Write a status update for these open incidents. For each incident read in full, give: what is broken, current status, who is working on it, the last update and the next step. For incidents only listed, give one line each. Most severe first.\n\n{{input}}",
-               params: [RecipeParam(key: "labels", label: "Incident labels", defaultValue: "incident,sev1,sev2,outage",
+               params: [RecipeParam(key: "labels", label: "Incident labels", defaultValue: "incident,outage,sev1,sev2,severity:critical,severity:high,escalation:hard-stop",
                                     help: "Comma-separated; an issue with any of them counts."), scope, repo],
                temperature: 0.2, permissive: true, long: .reduce,
                source: RecipeSource(kind: "github.each", query: "is:open is:issue archived:false {{owners}} label:{{labels}}", limit: 20, each: 3)),
@@ -316,6 +385,6 @@ public enum GitHubRecipes {
                params: [RecipeParam(key: "repo", label: "Repo", defaultValue: "", help: "owner/name. Empty means the repo in the current folder."),
                         RecipeParam(key: "branch", label: "Branch", defaultValue: "main", help: "all means every branch.")],
                temperature: 0.2, permissive: true, long: .reduce,
-               source: RecipeSource(kind: "github.runs", repo: "{{repo}}", branch: "{{branch}}", limit: 10, each: 3)),
+               source: RecipeSource(kind: "github.runs", repo: "{{repo}}", branch: "{{branch}}", limit: 15, each: 3)),
     ]
 }

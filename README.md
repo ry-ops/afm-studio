@@ -232,9 +232,9 @@ Six recipes read GitHub themselves, so you run them with no input. They appear i
 | `gh-open-prs` | Open PRs in your repos, your orgs' repos, or named repos | `afm run gh-open-prs -p scope=orgs` |
 | `gh-review-queue` | PRs waiting on your review, ranked | `afm run gh-review-queue` |
 | `gh-stale-prs` | Open PRs idle for N days, oldest first, with one action each | `afm run gh-stale-prs -p days=30` |
-| `gh-incidents` | Open issues with incident labels, reading the top three in full | `afm run gh-incidents -p labels=incident,sev1` |
+| `gh-incidents` | Open issues with incident or severity labels (`incident`, `outage`, `sev1`, `sev2`, `severity:critical`, `severity:high`, `escalation:hard-stop` by default), reading the top three in full | `afm run gh-incidents -p labels=incident,sev1` |
 | `gh-postmortem` | One incident thread, drafted as a blameless postmortem | `afm run gh-postmortem owner/repo#42` |
-| `gh-ci-failures` | Failed Actions runs, the failing steps and the end of their logs | `afm run gh-ci-failures owner/repo -p branch=all` |
+| `gh-ci-failures` | Failed Actions runs, grouped by what failed, with the failing step's own output | `afm run gh-ci-failures owner/repo -p branch=all` |
 
 - **The query is in the recipe.** Code runs it and writes one short line per item, with ages worked out in code. The model only reads those lines. Exact counts, such as totals and the busiest repos, are written above the answer by code, not by the model.
 - **A word after the name** fills the recipe's first empty option, such as the repo or the issue. `-p repo=.` means the repo in the current folder, and `gh-ci-failures` uses it when you name none.

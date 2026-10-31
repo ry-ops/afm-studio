@@ -563,7 +563,7 @@ await suite("Recipe sources") {
     let q3 = try await GitHubSources.query("is:open {{owners}}", values: ["repo": "x/y, https://github.com/p/q"], login: fixed)
     check(q3 == "is:open repo:x/y repo:p/q", "repo param wins, URLs parse")
     let q4 = try await GitHubSources.query("label:{{labels}}  {{owners}}", values: ["labels": "sev1,outage", "scope": "mine"], login: fixed)
-    check(q4 == "label:sev1,outage user:me1", "labels and spaces")
+    check(q4 == #"label:"sev1","outage" user:me1"#, "labels and spaces")
     do { _ = try await GitHubSources.query("{{owners}}", values: ["scope": "orgs"], login: { ("me1", []) }); check(false, "orgs with no orgs should throw") } catch { passed += 1 }
 
     let one = #"[{"id":7,"number":7,"title":"Fix login","state":"open","user":{"login":"sam"},"labels":[{"name":"bug"}],"comments":2,"html_url":"https://github.com/a/x/pull/7","created_at":"2026-10-01T00:00:00Z","updated_at":"2026-10-30T00:00:00Z","pull_request":{"url":"x"},"repository_url":"https://api.github.com/repos/a/x","draft":true}]"#
@@ -575,7 +575,27 @@ await suite("Recipe sources") {
         + "\n2026-10-30T10:01:00.0000000Z ##[error]Process completed with exit code 1.\n2026-10-30T10:01:01.0000000Z Cleaning up"
     let ex = GitHubSources.logExcerpt(log)
     check(ex.hasPrefix("line 41") && ex.contains("##[error]Process completed") && ex.hasSuffix("Cleaning up"), "excerpt starts 20 lines before the error, without timestamps")
-    check(GitHubSources.logExcerpt("##[group]Run x\n\u{1B}[36;1mnpm test\u{1B}[0m\n##[endgroup]") == "npm test", "runner markers and color codes removed")
+    check(GitHubSources.logExcerpt("##[group]Run x\n\u{1B}[36;1mnpm test\u{1B}[0m\n##[endgroup]\nok \u{1B}[31mred\u{1B}[0m") == "ok red", "step headers and color codes removed")
+    let steps = "2026-10-30T10:00:00.1Z 2026-10-30T10:00:00Z\tINFO scanning\n##[group]Run ./check.sh\nexit 1\nshell: /usr/bin/bash -e {0}\nenv:\n  KEY: v\n##[endgroup]\nFound 6 critical\n##[error]Process completed with exit code 1.\n##[group]Run next\nwith:"
+    check(GitHubSources.logExcerpt(steps) == "Found 6 critical\n##[error]Process completed with exit code 1.", "excerpt is the failing step's own output: \(GitHubSources.logExcerpt(steps))")
+    check(GitHubSources.logExcerpt("2026-10-30T10:00:00.1Z 2026-10-30T10:00:00Z\tboom") == "boom", "stacked timestamps removed")
+    check(GitHubSources.workflowName("npm_and_yarn in /frontend for minimatch - Update #1667914349") == "npm_and_yarn in /frontend for minimatch", "Dependabot run number dropped")
+    let ht = GitHubSources.headAndTail(String(repeating: "a", count: 500) + String(repeating: "b", count: 2000) + String(repeating: "c", count: 500), max: 1000)
+    check(ht.hasPrefix(String(repeating: "a", count: 400)) && ht.hasSuffix(String(repeating: "c", count: 500)) && ht.contains("2000 characters"), "long thread keeps its start and its latest end")
+    check(GitHubSources.headAndTail("short", max: 1000) == "short", "short thread kept whole")
+    check(GitHubSources.labelList(" incident, severity:high ,,help wanted") == #""incident","severity:high","help wanted""#, "labels quoted, spaces trimmed")
+    check(GitHubSources.workflowName("Security Scan") == "Security Scan", "plain workflow name kept")
+    let dec = JSONDecoder(); dec.keyDecodingStrategy = .convertFromSnakeCase
+    func run(_ id: Int, _ sha: String) throws -> GHRun {
+        try dec.decode(GHRun.self, from: Data(#"{"id":\#(id),"name":"Scan","head_branch":"main","head_sha":"\#(sha)","event":"push","html_url":"u","created_at":"2026-10-30T10:00:00Z"}"#.utf8))
+    }
+    func job(_ name: String, _ step: String) throws -> GHJob {
+        try dec.decode(GHJob.self, from: Data(#"{"id":1,"name":"\#(name)","conclusion":"failure","steps":[{"name":"\#(step)","conclusion":"failure"}]}"#.utf8))
+    }
+    let runs = [try run(3, "c"), try run(2, "b"), try run(1, "b")]
+    let groups = GitHubSources.failureGroups(runs, jobs: [3: [try job("trivy", "check")], 2: [try job("trivy", "check")], 1: [try job("audit", "npm")]])
+    check(groups.count == 2 && groups[0].runs.map(\.id) == [3, 2] && groups[0].commits == 2 && groups[1].latest.id == 1,
+          "runs failing the same way on different commits are one failure; a different failing job is another")
     let h = GitHubSources.headline(total: 9, found: [issue], now: now)
     check(h == "**9 pull requests** in a/x.", "headline: \(h)")
     check(GitHubSources.logExcerpt("| a    |     b |\n+--------------+\nok") == "| a | b |\nok", "padding squeezed, border-only lines dropped")
